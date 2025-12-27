@@ -8,14 +8,14 @@ CodeBook includes a task management feature for capturing documentation changes.
 codebook task new "Title of the task" ./scope
 ```
 
-This creates `.codebook/tasks/YYYYMMDD-TITLE_OF_THE_TASK.md` containing git diffs for each modified file.
+This creates `.codebook/tasks/YYYYMMDDHHMM-TITLE_OF_THE_TASK.md` containing git diffs for each modified file.
 
 Users can delete the tasks by running `codebook task delete` with the "Title of the task" or without it the pick tool will be used to select the task to delete from the list of tasks.
 
 
 ## Behavior
 
-By default, `task new` only includes files that have uncommitted changes (staged or unstaged). Use `--all` to capture all files regardless of git status.
+By default, `task new` only includes files that have uncommitted changes (staged or unstaged).
 
 The title is converted to `UPPER_SNAKE_CASE` for the filename.
 And the task is prepended with a generic wrapper describing what to be changed.
@@ -66,4 +66,4 @@ diff --git a/path/to/file.md b/path/to/file.md
 
 ---
 
-Rendered by CodeBook [`4d28f67`](codebook:codebook.version)
+Rendered by CodeBook [`ee158b4`](codebook:codebook.version)

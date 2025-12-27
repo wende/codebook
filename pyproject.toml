@@ -31,6 +31,7 @@ dependencies = [
     "jupyter-client>=8.0.0",
     "ipykernel>=6.0.0",
     "pyyaml>=6.0.0",
+    "jqpy>=1.0.0",
 ]
 
 [project.optional-dependencies]
@@ -74,6 +75,5 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "-v --tb=short"
-filterwarnings = [
-    "ignore:The global interpreter lock.*:RuntimeWarning",
-]
+# Note: To suppress GIL warnings on Python 3.13+ free-threaded builds, run:
+# PYTHONWARNINGS="ignore::RuntimeWarning" pytest

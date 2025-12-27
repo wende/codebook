@@ -185,4 +185,4 @@ codebook watch docs/ --exec --cicada
 
 ---
 
-Rendered by CodeBook [`0a07c4a`](codebook:codebook.version)
+Rendered by CodeBook [`ee158b4`](codebook:codebook.version)

@@ -23,15 +23,15 @@ Found 2 match(es):
 
 ---
 
-_file_src.codebook.cli.render()
-src/codebook/cli.py:108
+_file_cli.render()
+cli.py:132
 *No call sites found*
 
 
 ---
 
 CodeBookLink.render()
-src/codebook/parser.py:51
+parser.py:56
 *No call sites found*
 
 </cicada>
@@ -46,63 +46,9 @@ src/codebook/parser.py:51
 Search for modules:
 
 ```html
-<cicada endpoint="search-module" module_name="CodeBookParser">
-{
-  "module": "CodeBookParser",
-  "location": "src/codebook/parser.py:75",
-  "moduledoc": "```python\nclass CodeBookParser:\n```\nParser for extracting and manipulating codebook links in markdown.\n\nSupported formats:\n1. \\[`VALUE`\\](codebook:TEMPLATE) - inline value display\n2. [text](URL \"codebook:TEMPLATE\") - URL that gets updated\n3. &lt;span data-codebook=\"TEMPLATE\"&gt;VALUE&lt;/span&gt; - inline HTML\n4. &lt;div data-codebook=\"TEMPLATE\"&gt;CONTENT&lt;/div&gt; - multiline HTML",
-  "counts": {
-    "public": 9,
-    "private": 0
-  },
-  "functions": [
-    {
-      "signature": "def count_links(\n  self,\n  content: str\n) -> int:",
-      "line": 260,
-      "type": "public"
-    },
-    {
-      "signature": "def div_replacer(\n  match: re.Match[str]\n) -> str:",
-      "line": 232,
-      "type": "public"
-    },
-    {
-      "signature": "def find_links(\n  self,\n  content: str\n) -> Iterator[CodeBookLink]:",
-      "line": 105,
-      "type": "public"
-    },
-    {
-      "signature": "def find_templates(\n  self,\n  content: str\n) -> list[str]:",
-      "line": 171,
-      "type": "public"
-    },
-    {
-      "signature": "def has_codebook_links(\n  self,\n  content: str\n) -> bool:",
-      "line": 243,
-      "type": "public"
-    },
-    {
-      "signature": "def inline_replacer(\n  match: re.Match[str]\n) -> str:",
-      "line": 201,
-      "type": "public"
-    },
-    {
-      "signature": "def replace_values(\n  self,\n  content: str,\n  values: dict[str, str]\n) -> str:",
-      "line": 188,
-      "type": "public"
-    },
-    {
-      "signature": "def span_replacer(\n  match: re.Match[str]\n) -> str:",
-      "line": 222,
-      "type": "public"
-    },
-    {
-      "signature": "def url_replacer(\n  match: re.Match[str]\n) -> str:",
-      "line": 211,
-      "type": "public"
-    }
-  ]
-}
+<cicada endpoint="search-module" module_name="CodeBookParser" jq=".module,.location">
+CodeBookParser  
+parser.py:86
 </cicada>
 ```
 
@@ -135,6 +81,7 @@ Get git history for a file or module:
 <cicada endpoint="git-history" file_path="src/codebook/parser.py" limit="5">
 ## History for src/codebook/parser.py
 
+- 3f2e42cb (2025-12-27) @Krzysztof Wende: Test commit
 - 4f4a722c (2025-12-27) @Krzysztof Wende: INIT
 </cicada>
 ```
@@ -150,12 +97,28 @@ Get git history for a file or module:
 
 Returns structured JSON data:
 
-<cicada endpoint="search-function" function_name="get_codebook_version">
+<cicada endpoint="search-function" function_name="get_codebook_version" render="code[json]">
+
+```json
 {
-  "error": "Function not found",
   "query": "get_codebook_version",
-  "hint": "Verify the function name spelling or try without arity"
+  "total_matches": 1,
+  "results": [
+    {
+      "module": "_file_renderer",
+      "moduledoc": null,
+      "function": "get_codebook_version",
+      "arity": 0,
+      "full_name": "_file_renderer.get_codebook_version/0",
+      "signature": "def get_codebook_version() -> str:",
+      "location": "renderer.py:22",
+      "type": "public",
+      "doc": "Get the current codebook version from git.\n\n    Returns:\n        Version string in format 'tag (short_sha)' or just 'sha' if no tag.",
+      "call_sites": []
+    }
+  ]
 }
+```
 </cicada>
 
 ### Markdown
@@ -163,7 +126,12 @@ Returns structured JSON data:
 Returns formatted markdown:
 
 <cicada endpoint="search-function" function_name="get_codebook_version" format="markdown">
-Not found: `get_codebook_version`. Try: `*get_codebook_version*` | query(['get', 'codebook', 'version'])
+---
+renderer.py:22
+_file_renderer.get_codebook_version()
+*No call sites found*
+
+---
 </cicada>
 
 ## JSON Path Extraction
@@ -182,7 +150,7 @@ Use the `jq` attribute to extract specific values from JSON responses:
 
 ```html
 <cicada endpoint="search-function" function_name="render" jq=".results[0].module">
-_file_src.codebook.cli
+_file_cli
 </cicada>
 ```
 
@@ -190,9 +158,7 @@ _file_src.codebook.cli
 
 ```html
 <cicada endpoint="search-function" function_name="render" jq=".results[*].location">
-src/codebook/cli.py:108
 
-src/codebook/parser.py:51
 </cicada>
 ```
 
@@ -245,4 +211,4 @@ def render_file(
 
 ---
 
-Rendered by CodeBook [`4f4a722`](codebook:codebook.version)
+Rendered by CodeBook [`ee158b4`](codebook:codebook.version)

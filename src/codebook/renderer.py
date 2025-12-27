@@ -59,7 +59,7 @@ if TYPE_CHECKING:
     from .kernel import CodeBookKernel
     from .cicada import CicadaClient
 
-from .cicada import jsonpath_get, format_json_value
+from .cicada import jq_query, format_json_value
 
 logger = logging.getLogger(__name__)
 
@@ -316,11 +316,22 @@ class CodeBookRenderer:
                     # Check if jq extraction is requested
                     jq_path = params.get("jq")
                     if jq_path and result.raw_data is not None:
-                        # Apply JSON path extraction
-                        extracted = jsonpath_get(result.raw_data, jq_path)
+                        # Apply jq query extraction
+                        extracted = jq_query(result.raw_data, jq_path)
                         output_content = format_json_value(extracted)
                     else:
                         output_content = result.content
+
+                    # Wrap in code fence if render="code" or render="code[lang]"
+                    render_mode = params.get("render", "")
+                    if render_mode.startswith("code"):
+                        # Parse lang from "code[json]" format or fall back to lang param
+                        lang = ""
+                        if "[" in render_mode and render_mode.endswith("]"):
+                            lang = render_mode[render_mode.index("[") + 1 : -1]
+                        else:
+                            lang = params.get("lang", "")
+                        output_content = f"\n```{lang}\n{output_content}\n```"
 
                     # Build the new block with updated content
                     attrs = f'endpoint="{endpoint}"'

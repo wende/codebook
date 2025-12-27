@@ -31,7 +31,7 @@ codebook run
 | Metric    | Value                               |
 | --------- | ----------------------------------- |
 | Templates | [`42`](codebook:project.file_count) |
-| Version   | [`443a63e`](codebook:codebook.version)  |
+| Version   | [`ee158b4`](codebook:codebook.version)  |
 
 ## Documentation Files
 
@@ -39,4 +39,4 @@ codebook run
 
 ---
 
-Rendered by CodeBook [`443a63e`](codebook:codebook.version)
+Rendered by CodeBook [`ee158b4`](codebook:codebook.version)

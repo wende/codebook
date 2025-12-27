@@ -6,78 +6,54 @@ allowing codebook to render live code exploration results in markdown.
 
 import json
 import logging
-import re
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urljoin
 
+from jqpy import jq as jqpy_jq
 import requests
 
 logger = logging.getLogger(__name__)
 
 
-def jsonpath_get(data: Any, path: str) -> Any:
-    """Extract a value from JSON data using a simple path expression.
+def jq_query(data: Any, query: str) -> Any:
+    """Extract values from JSON data using jq query syntax.
 
-    Supports:
+    Supports the full jq query language including:
     - `.key` - access object key
     - `[0]` - access array index
-    - `[*]` - get all array elements
-    - `.key1.key2[0].key3` - chained access
+    - `.[]` - iterate all elements
+    - `.key1,.key2` - multiple selections
+    - `| select(.x > 1)` - filtering
+    - And all other jq operations
 
     Args:
         data: The JSON data (dict, list, or primitive)
-        path: The path expression (e.g., ".results[0].function")
+        query: The jq query expression (e.g., ".results[0].function", ".module,.location")
 
     Returns:
-        The extracted value, or None if path is invalid
+        The extracted value(s), or None if query fails
 
     Examples:
-        >>> jsonpath_get({"a": {"b": 1}}, ".a.b")
+        >>> jq_query({"a": {"b": 1}}, ".a.b")
         1
-        >>> jsonpath_get({"items": [{"x": 1}, {"x": 2}]}, ".items[*].x")
+        >>> jq_query({"x": 1, "y": 2}, ".x,.y")
+        [1, 2]
+        >>> jq_query({"items": [{"x": 1}, {"x": 2}]}, ".items[].x")
         [1, 2]
     """
-    if not path or path == ".":
+    if not query or query == ".":
         return data
 
-    # Remove leading dot if present
-    if path.startswith("."):
-        path = path[1:]
-
-    # Parse path into tokens
-    tokens = re.findall(r'(\w+)|\[(\d+|\*)\]', path)
-
-    result = data
-    for token in tokens:
-        key, index = token
-        if key:
-            # Object key access
-            if isinstance(result, dict):
-                result = result.get(key)
-            elif isinstance(result, list):
-                # Apply to all elements
-                result = [item.get(key) if isinstance(item, dict) else None for item in result]
-            else:
-                return None
-        elif index:
-            # Array index access
-            if index == "*":
-                # Get all elements
-                if isinstance(result, list):
-                    continue  # Keep the list as-is for chaining
-                return None
-            else:
-                idx = int(index)
-                if isinstance(result, list) and 0 <= idx < len(result):
-                    result = result[idx]
-                else:
-                    return None
-
-        if result is None:
-            return None
-
-    return result
+    try:
+        results = jqpy_jq(query, data)
+        # Return single value if only one result, otherwise return list
+        if len(results) == 1:
+            return results[0]
+        return results if results else None
+    except Exception as e:
+        logger.warning(f"jq query failed: {e}")
+        return None
 
 
 def format_json_value(value: Any, indent: int = 2) -> str:
@@ -97,9 +73,9 @@ def format_json_value(value: Any, indent: int = 2) -> str:
     if isinstance(value, (int, float, bool)):
         return str(value)
     if isinstance(value, list):
-        # For lists of strings, join with newlines for better markdown display
+        # For lists of strings, join with markdown line breaks (two spaces + newline)
         if all(isinstance(item, str) for item in value):
-            return "\n\n".join(value)
+            return "  \n".join(value)
         return json.dumps(value, indent=indent)
     if isinstance(value, dict):
         return json.dumps(value, indent=indent)

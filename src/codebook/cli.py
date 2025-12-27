@@ -643,7 +643,7 @@ def task() -> None:
 def task_new(ctx: click.Context, title: str, scope: Path, include_all: bool) -> None:
     """Create a new task capturing modified files and their diffs.
 
-    Creates a task file at .codebook/tasks/YYYYMMDD-TITLE.md containing
+    Creates a task file at .codebook/tasks/YYYYMMDDHHMM-TITLE.md containing
     the original content and git diff for each MODIFIED file in scope.
 
     By default, only includes files with uncommitted changes.
@@ -658,7 +658,7 @@ def task_new(ctx: click.Context, title: str, scope: Path, include_all: bool) -> 
         codebook task new "Full Snapshot" ./docs --all
     """
     import re
-    from datetime import date
+    from datetime import datetime
 
     # Load config for task prefix/suffix
     cfg = CodeBookConfig.load()
@@ -667,8 +667,8 @@ def task_new(ctx: click.Context, title: str, scope: Path, include_all: bool) -> 
     task_name = re.sub(r"[^\w\s]", "", title)
     task_name = re.sub(r"\s+", "_", task_name).upper()
 
-    # Add date prefix
-    date_prefix = date.today().strftime("%Y%m%d")
+    # Add datetime prefix (YYYYMMDDHHMM)
+    date_prefix = datetime.now().strftime("%Y%m%d%H%M")
 
     # Create tasks directory
     tasks_dir = Path(cfg.tasks_dir)
@@ -715,6 +715,33 @@ def task_new(ctx: click.Context, title: str, scope: Path, include_all: bool) -> 
             return None
         except Exception:
             return None
+
+    def is_version_only_diff(diff_output: str) -> bool:
+        """Check if a diff only contains codebook version changes."""
+        # Extract actual changed lines (excluding diff metadata)
+        changed_lines = []
+        for line in diff_output.split("\n"):
+            # Skip diff headers and context lines
+            if line.startswith("diff ") or line.startswith("index "):
+                continue
+            if line.startswith("--- ") or line.startswith("+++ "):
+                continue
+            if line.startswith("@@ "):
+                continue
+            # Capture actual additions/deletions (not context lines)
+            if line.startswith("+") or line.startswith("-"):
+                # Skip empty additions/deletions
+                content = line[1:].strip()
+                if content:
+                    changed_lines.append(content)
+
+        # If no actual changes, consider it version-only (empty diff edge case)
+        if not changed_lines:
+            return True
+
+        # Check if ALL changed lines are codebook version stamps
+        version_pattern = re.compile(r"Rendered by CodeBook \[`[^`]*`\]\(codebook:codebook\.version\)")
+        return all(version_pattern.search(line) for line in changed_lines)
 
     # Collect files to process
     if scope.is_file():
@@ -801,8 +828,17 @@ def task_list() -> None:
     for task_file in task_files:
         # Parse filename to extract date and title
         name = task_file.stem
-        # Check if filename has date prefix (YYYYMMDD-)
-        if len(name) > 9 and name[8] == "-" and name[:8].isdigit():
+        # Check if filename has datetime prefix (YYYYMMDDHHMM-)
+        if len(name) > 13 and name[12] == "-" and name[:12].isdigit():
+            date_part = name[:12]
+            title_part = name[13:]
+            formatted_date = (
+                f"{date_part[:4]}-{date_part[4:6]}-{date_part[6:8]} "
+                f"{date_part[8:10]}:{date_part[10:12]}"
+            )
+            click.echo(f"  [{formatted_date}] {title_part}")
+        # Fallback: Check for old format (YYYYMMDD-)
+        elif len(name) > 9 and name[8] == "-" and name[:8].isdigit():
             date_part = name[:8]
             title_part = name[9:]
             formatted_date = f"{date_part[:4]}-{date_part[4:6]}-{date_part[6:8]}"
@@ -847,7 +883,10 @@ def task_delete(title: str | None, force: bool) -> None:
 
     def parse_task_title(filename: str) -> str:
         """Extract title from task filename (stripping date prefix if present)."""
-        # Check if filename has date prefix (YYYYMMDD-)
+        # Check if filename has datetime prefix (YYYYMMDDHHMM-)
+        if len(filename) > 13 and filename[12] == "-" and filename[:12].isdigit():
+            return filename[13:]
+        # Fallback: Check for old format (YYYYMMDD-)
         if len(filename) > 9 and filename[8] == "-" and filename[:8].isdigit():
             return filename[9:]
         return filename
@@ -855,6 +894,16 @@ def task_delete(title: str | None, force: bool) -> None:
     def format_task_choice(task_file: Path) -> str:
         """Format a task file for display in the picker."""
         name = task_file.stem
+        # Check for new format (YYYYMMDDHHMM-)
+        if len(name) > 13 and name[12] == "-" and name[:12].isdigit():
+            date_part = name[:12]
+            title_part = name[13:]
+            formatted_date = (
+                f"{date_part[:4]}-{date_part[4:6]}-{date_part[6:8]} "
+                f"{date_part[8:10]}:{date_part[10:12]}"
+            )
+            return f"[{formatted_date}] {title_part}"
+        # Fallback: Check for old format (YYYYMMDD-)
         if len(name) > 9 and name[8] == "-" and name[:8].isdigit():
             date_part = name[:8]
             title_part = name[9:]

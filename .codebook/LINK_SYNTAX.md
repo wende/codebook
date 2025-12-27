@@ -17,40 +17,26 @@ The project has [`1000`](codebook:metrics.files_indexed) files indexed.
 
 **Renders as:** The project has [`1000`](codebook:metrics.files_indexed) files indexed.
 
-## 2. Span Elements
+## 2. Codebook Elements
 
 For inline HTML contexts:
 
 ```html
-<span data-codebook="TEMPLATE">VALUE</span>
-```
-
-**Example:**
-```html
-Project: <span data-codebook="project.name">CICADA</span>
-```
-
-**Renders as:** Project: <span data-codebook="project.name">CICADA</span>
-
-## 3. Div Elements
-
-For multiline content blocks:
-
-```html
-<div data-codebook="TEMPLATE">
-MULTILINE CONTENT
-</div>
-```
-
-**Example:**
-```html
-<div data-codebook="examples.config">
+<codebook file="TEMPLATE">VALUE</codebook>
+<codebook file="examples.config">
 server:
   port: 3000
-</div>
+</codebook>
 ```
 
-## 4. URL Links
+**Example:**
+```html
+Project: <codebook file="project.name">CICADA</codebook>
+```
+
+**Renders as:** Project: <codebook file="project.name">CICADA</codebook>
+
+## 3. URL Links
 
 Dynamic URLs with static link text:
 
@@ -67,15 +53,17 @@ The URL gets replaced while the link text stays the same.
 
 ## Special Templates
 
+Use <codebook:TEMPLATES> to list all available templates.
+
 ### codebook.version
 
 Returns the current CodeBook version (git tag/SHA):
 
 ```markdown
-[`4f4a722`](codebook:codebook.version)
+[`ee158b4`](codebook:codebook.version)
 ```
 
-**Current version:** [`4f4a722`](codebook:codebook.version)
+**Current version:** [`ee158b4`](codebook:codebook.version)
 
 ## Template Resolution
 
@@ -88,4 +76,4 @@ Results are cached based on the `cache_ttl` setting.
 
 ---
 
-Rendered by CodeBook [`4f4a722`](codebook:codebook.version)
+Rendered by CodeBook [`ee158b4`](codebook:codebook.version)

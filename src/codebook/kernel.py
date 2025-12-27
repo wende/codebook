@@ -6,10 +6,14 @@ embedded in markdown files and capture their output.
 
 import atexit
 import queue
+import re
 from dataclasses import dataclass
 from typing import Any
 
 from jupyter_client import KernelManager
+
+# Regex to match ANSI escape codes
+ANSI_ESCAPE_PATTERN = re.compile(r"\x1b\[[0-9;]*m")
 
 
 @dataclass
@@ -123,8 +127,10 @@ class CodeBookKernel:
                 if "text/plain" in data:
                     outputs.append(data["text/plain"])
             elif msg_type == "error":
-                # Execution error
-                error = "\n".join(content.get("traceback", [content.get("evalue", "Unknown error")]))
+                # Execution error - strip ANSI escape codes from traceback
+                traceback = content.get("traceback", [content.get("evalue", "Unknown error")])
+                raw_error = "\n".join(traceback)
+                error = ANSI_ESCAPE_PATTERN.sub("", raw_error)
                 break
             elif msg_type == "status" and content.get("execution_state") == "idle":
                 # Execution complete
