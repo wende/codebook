@@ -2,7 +2,7 @@
 
 import pytest
 
-from codebook.parser import CodeBookParser, CodeBookLink
+from codebook.parser import CodeBookParser, CodeBookLink, Frontmatter
 
 
 class TestCodeBookLink:
@@ -540,3 +540,166 @@ Some content here.
         result = link.render("new-file.md")
 
         assert result == '[Text](new-file.md "codebook:backlink")'
+
+
+class TestFrontmatter:
+    """Tests for frontmatter parsing."""
+
+    @pytest.fixture
+    def parser(self) -> CodeBookParser:
+        """Create a parser instance."""
+        return CodeBookParser()
+
+    def test_parse_frontmatter_with_title(self, parser: CodeBookParser):
+        """Should parse frontmatter with title."""
+        content = """---
+title: My Document
+---
+
+# Content here
+"""
+        frontmatter, body = parser.parse_frontmatter(content)
+
+        assert frontmatter.title == "My Document"
+        assert body.strip() == "# Content here"
+
+    def test_parse_frontmatter_with_tags(self, parser: CodeBookParser):
+        """Should parse frontmatter with tags array."""
+        content = """---
+tags: [api, documentation]
+---
+
+Content
+"""
+        frontmatter, body = parser.parse_frontmatter(content)
+
+        assert frontmatter.tags == ["api", "documentation"]
+
+    def test_parse_frontmatter_with_disable(self, parser: CodeBookParser):
+        """Should parse frontmatter with disable array."""
+        content = """---
+disable: [links, backlinks]
+---
+
+Content
+"""
+        frontmatter, body = parser.parse_frontmatter(content)
+
+        assert frontmatter.disable == ["links", "backlinks"]
+        assert frontmatter.links_disabled is True
+        assert frontmatter.backlinks_disabled is True
+
+    def test_parse_frontmatter_links_disabled_property(self, parser: CodeBookParser):
+        """Should correctly report links_disabled property."""
+        content = """---
+disable: [links]
+---
+"""
+        frontmatter, _ = parser.parse_frontmatter(content)
+
+        assert frontmatter.links_disabled is True
+        assert frontmatter.backlinks_disabled is False
+
+    def test_parse_frontmatter_backlinks_disabled_property(self, parser: CodeBookParser):
+        """Should correctly report backlinks_disabled property."""
+        content = """---
+disable: [backlinks]
+---
+"""
+        frontmatter, _ = parser.parse_frontmatter(content)
+
+        assert frontmatter.links_disabled is False
+        assert frontmatter.backlinks_disabled is True
+
+    def test_parse_frontmatter_no_frontmatter(self, parser: CodeBookParser):
+        """Should return empty frontmatter when none exists."""
+        content = "# Just a heading\n\nSome content."
+
+        frontmatter, body = parser.parse_frontmatter(content)
+
+        assert frontmatter.title is None
+        assert frontmatter.tags == []
+        assert frontmatter.disable == []
+        assert body == content
+
+    def test_parse_frontmatter_preserves_raw(self, parser: CodeBookParser):
+        """Should preserve raw frontmatter data."""
+        content = """---
+title: Test
+custom_field: custom_value
+---
+"""
+        frontmatter, _ = parser.parse_frontmatter(content)
+
+        assert frontmatter.raw["title"] == "Test"
+        assert frontmatter.raw["custom_field"] == "custom_value"
+
+    def test_parse_frontmatter_invalid_yaml(self, parser: CodeBookParser):
+        """Should return empty frontmatter for invalid YAML."""
+        content = """---
+title: [invalid yaml
+  - missing bracket
+---
+
+Content
+"""
+        frontmatter, body = parser.parse_frontmatter(content)
+
+        # Should return empty frontmatter and original content
+        assert frontmatter.title is None
+        assert body == content
+
+    def test_parse_frontmatter_not_at_start(self, parser: CodeBookParser):
+        """Should not parse frontmatter if not at document start."""
+        content = """Some text first
+
+---
+title: Not Frontmatter
+---
+"""
+        frontmatter, body = parser.parse_frontmatter(content)
+
+        assert frontmatter.title is None
+        assert body == content
+
+    def test_parse_frontmatter_single_tag_as_string(self, parser: CodeBookParser):
+        """Should handle single tag as string."""
+        content = """---
+tags: single-tag
+---
+"""
+        frontmatter, _ = parser.parse_frontmatter(content)
+
+        assert frontmatter.tags == ["single-tag"]
+
+    def test_parse_frontmatter_single_disable_as_string(self, parser: CodeBookParser):
+        """Should handle single disable as string."""
+        content = """---
+disable: links
+---
+"""
+        frontmatter, _ = parser.parse_frontmatter(content)
+
+        assert frontmatter.disable == ["links"]
+        assert frontmatter.links_disabled is True
+
+    def test_parse_frontmatter_complete_example(self, parser: CodeBookParser):
+        """Should parse complete frontmatter example from spec."""
+        content = """---
+title: My Title
+tags: [tag1, tag2]
+disable: [links, backlinks]
+---
+
+# Document Content
+
+Some text here.
+"""
+        frontmatter, body = parser.parse_frontmatter(content)
+
+        assert frontmatter.title == "My Title"
+        assert frontmatter.tags == ["tag1", "tag2"]
+        assert frontmatter.disable == ["links", "backlinks"]
+        assert frontmatter.links_disabled is True
+        assert frontmatter.backlinks_disabled is True
+        assert "# Document Content" in body

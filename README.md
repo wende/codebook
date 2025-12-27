@@ -11,6 +11,11 @@ CodeBook is a markdown documentation system that embeds live code references usi
 - **Git Integration**: Generate diffs with resolved values instead of templates
 - **Fast**: Built-in TTL caching and efficient batch resolution
 - **Extensible**: Easy to integrate with existing code intelligence backends
+- **Code Execution**: Run Python code blocks via Jupyter kernels with output capture
+- **Code Exploration**: Integrate with [Cicada](https://github.com/cicada-lang/cicada) for live code queries
+- **Bidirectional Links**: Automatic backlink generation between markdown files
+- **Task Management**: Capture documentation changes as actionable task files
+- **Configuration File**: YAML-based config for zero-config startup with `codebook run`
 
 ## Quick Start
 
@@ -37,12 +42,17 @@ This project has [`42`](codebook:project.file_count) files.
 The main language is [`Python`](codebook:project.primary_language).
 ```
 
-2. **Start the mock backend** (for testing):
+2. **Initialize configuration**:
 ```bash
-python examples/mock_server.py
+codebook init
 ```
 
-3. **Render the document**:
+3. **Run with auto-reload**:
+```bash
+codebook run
+```
+
+Or use explicit commands:
 ```bash
 # One-time render
 codebook render examples/ --base-url http://localhost:3000
@@ -74,11 +84,14 @@ When CodeBook processes the file:
 
 ### Components
 
-- **Link Parser** (`parser.py`): Finds and extracts codebook links from markdown
+- **Link Parser** (`parser.py`): Finds and extracts codebook links from markdown (8 link types)
 - **HTTP Client** (`client.py`): Resolves templates via backend service with TTL caching and batch support
-- **File Renderer** (`renderer.py`): Updates markdown files with resolved values
+- **File Renderer** (`renderer.py`): Updates markdown files with resolved values and manages backlinks
 - **File Watcher** (`watcher.py`): Monitors files for changes with thread-safe debouncing
 - **Git Diff Generator** (`differ.py`): Creates diffs with resolved values
+- **Jupyter Kernel** (`kernel.py`): Executes Python code blocks with output capture
+- **Cicada Client** (`cicada.py`): Code exploration queries with jq extraction
+- **Configuration** (`config.py`): YAML-based configuration management
 - **CLI Interface** (`cli.py`): User-friendly command-line interface
 
 ### Backend Integration
@@ -112,16 +125,50 @@ curl http://localhost:3000/resolve/SCIP.language_count
 
 ## CLI Commands
 
+### Global Options
+
+These options apply to all commands:
+```bash
+codebook [global-options] <command> [options]
+
+Global Options:
+  -b, --base-url    Backend service URL (env: CODEBOOK_BASE_URL)
+  -t, --timeout     HTTP request timeout in seconds (default: 10)
+  -c, --cache-ttl   Cache time-to-live in seconds (default: 60)
+  --cicada-url      Cicada server URL (env: CICADA_URL)
+  -v, --verbose     Enable verbose logging output
+  --version         Show version
+```
+
+### Run (Recommended)
+```bash
+codebook run [options]
+
+Options:
+  -c, --config    Path to config file (searches for codebook.yml if not provided)
+```
+
+Runs CodeBook using `codebook.yml` configuration. Auto-starts backend and Cicada services if configured, performs initial render, and watches for changes.
+
+### Initialize Config
+```bash
+codebook init [options]
+
+Options:
+  -o, --output    Output file path (default: codebook.yml)
+```
+
+Creates a default `codebook.yml` configuration file.
+
 ### Render Directory
 ```bash
 codebook render <directory> [options]
 
 Options:
-  -b, --base-url    Backend service URL (default: http://localhost:3000)
-  -t, --timeout     HTTP request timeout in seconds (default: 10)
-  -c, --cache-ttl   Cache time-to-live in seconds (default: 60)
-  --recursive       Process subdirectories recursively (default: true)
-  --dry-run         Show what would be done without making changes
+  --recursive/--no-recursive    Process subdirectories (default: true)
+  --dry-run                     Show changes without modifying files
+  --exec/--no-exec              Execute Python code blocks via Jupyter
+  --cicada/--no-cicada          Execute Cicada code exploration queries
 ```
 
 ### Watch Directory
@@ -129,10 +176,11 @@ Options:
 codebook watch <directory> [options]
 
 Options:
-  -b, --base-url         Backend service URL
-  -d, --debounce         Debounce time in seconds (default: 0.5)
-  --initial-render       Render files once before watching (default: true)
-  --recursive            Watch subdirectories recursively (default: true)
+  -d, --debounce                Debounce time in seconds (default: 0.5)
+  --initial-render/--no-initial-render  Render before watching (default: true)
+  --recursive/--no-recursive    Watch subdirectories (default: true)
+  --exec/--no-exec              Enable code execution via Jupyter
+  --cicada/--no-cicada          Enable Cicada queries
 ```
 
 ### Generate Diff
@@ -140,26 +188,39 @@ Options:
 codebook diff <path> [options]
 
 Options:
-  -b, --base-url    Backend service URL
   -r, --ref         Git ref to compare against (default: HEAD)
   -o, --output      Output file for diff (default: stdout)
-  --recursive       Process subdirectories recursively (for directories)
+  --recursive       Process subdirectories (for directories)
 ```
 
 ### Show Rendered Content
 ```bash
-codebook show <file> [options]
-
-Options:
-  -b, --base-url    Backend service URL
+codebook show <file>
 ```
 
-### Check Backend Health
+### Task Management
 ```bash
-codebook health [options]
+# Create a task from modified files
+codebook task new <title> <scope> [options]
 
 Options:
-  -b, --base-url    Backend service URL
+  --all    Include all files, not just modified ones
+
+# List all tasks
+codebook task list
+
+# Delete a task
+codebook task delete [title] [options]
+
+Options:
+  -f, --force    Delete without confirmation
+```
+
+Tasks capture git diffs of modified files in `.codebook/tasks/YYYYMMDDHHMM-TITLE.md`.
+
+### Health Check
+```bash
+codebook health
 ```
 
 ### Clear Cache
@@ -183,9 +244,54 @@ codebook render examples/ --base-url http://localhost:3000
 codebook watch examples/ --base-url http://localhost:3000
 ```
 
+## Link Syntax
+
+CodeBook supports multiple link formats:
+
+### Inline Links (Primary)
+```markdown
+[`VALUE`](codebook:TEMPLATE)
+```
+Example: `[`13`](codebook:SCIP.language_count)` displays "13"
+
+### URL Links
+```markdown
+[Link Text](URL "codebook:TEMPLATE")
+```
+The URL updates on resolution while link text stays the same.
+
+### HTML Elements
+```html
+<span data-codebook="TEMPLATE">VALUE</span>
+<div data-codebook="TEMPLATE">MULTILINE CONTENT</div>
+```
+
+### Code Execution Blocks
+```html
+<exec lang="python">
+print("Hello, World!")
+</exec>
+<output>
+Hello, World!
+</output>
+```
+Requires `--exec` flag or `exec: true` in config.
+
+### Cicada Query Blocks
+```html
+<cicada endpoint="search-function" function_name="render" format="markdown">
+Results appear here
+</cicada>
+```
+Requires `--cicada` flag or `cicada.enabled: true` in config.
+
+### Special Templates
+
+- `codebook.version` - Returns git commit SHA or tag
+
 ## Template Patterns
 
-CodeBook supports various template patterns:
+Template expressions are resolved via HTTP:
 
 ```markdown
 # Simple properties
@@ -240,6 +346,118 @@ Templates should follow these guidelines:
 - Keep templates descriptive and readable
 - Use consistent naming conventions
 
+## Bidirectional Links
+
+CodeBook automatically generates backlinks when you link to other markdown files:
+
+```markdown
+See the [API Documentation](api.md) for details.
+```
+
+When rendered, `api.md` will have a backlinks section added:
+
+```markdown
+--- BACKLINKS ---
+[API Documentation](source.md "codebook:backlink")
+```
+
+Features:
+- Automatic deduplication
+- Relative path calculation
+- Creates BACKLINKS section if needed
+
+## Configuration File
+
+Create `codebook.yml` for zero-config startup:
+
+```yaml
+watch_dir: .codebook
+tasks_dir: .codebook/tasks
+exec: true
+recursive: true
+timeout: 10.0
+cache_ttl: 60.0
+
+backend:
+  url: http://localhost:3000
+  port: 3000
+  start: true
+
+cicada:
+  enabled: true
+  url: http://localhost:9999
+  port: 9999
+  start: true
+
+# Optional task customization
+task_prefix: |
+  # Instructions for AI
+  ...
+task_suffix: ""
+```
+
+Then simply run:
+```bash
+codebook run
+```
+
+## Code Execution
+
+Execute Python code blocks with Jupyter kernel integration:
+
+```html
+<exec lang="python">
+import math
+print(f"Pi = {math.pi:.4f}")
+</exec>
+<output>
+Pi = 3.1416
+</output>
+```
+
+Features:
+- State persists between blocks
+- Project modules available via `sys.path`
+- Errors captured with stripped ANSI codes
+
+Enable via `--exec` flag or `exec: true` in config.
+
+## Cicada Integration
+
+Query your codebase with live code exploration:
+
+```html
+<cicada endpoint="search-function" function_name="render" format="markdown">
+Function results...
+</cicada>
+```
+
+Available endpoints:
+- `query` - Semantic code search
+- `search-function` - Find function definitions
+- `search-module` - Find module information
+- `git-history` - Get git history
+
+Supports jq extraction:
+```html
+<cicada endpoint="search-function" function_name="render" jq=".total_matches">
+42
+</cicada>
+```
+
+Enable via `--cicada` flag or `cicada.enabled: true` in config.
+
+## Detailed Documentation
+
+For comprehensive documentation, see the `.codebook/` directory:
+
+- **[Link Syntax](.codebook/LINK_SYNTAX.md)** - All 8 link type formats
+- **[Code Execution](.codebook/CODE_EXECUTION.md)** - Jupyter kernel details
+- **[Cicada Integration](.codebook/CICADA_INTEGRATION.md)** - All endpoints and jq queries
+- **[Configuration](.codebook/CONFIGURATION.md)** - Full YAML reference
+- **[Tasks](.codebook/TASKS.md)** - Task management details
+- **[Edge Cases](.codebook/edge-cases/)** - Implementation behavior details
+
 ## Testing
 
 Run the comprehensive test suite:
@@ -265,15 +483,25 @@ pytest -v
 codebook/
 ├── src/codebook/       # Main package (src layout)
 │   ├── __init__.py
-│   ├── parser.py       # Link parsing logic
+│   ├── parser.py       # Link parsing (8 types)
 │   ├── client.py       # HTTP client with caching
-│   ├── renderer.py     # File rendering logic
+│   ├── renderer.py     # File rendering + backlinks
 │   ├── watcher.py      # File watching with debouncing
 │   ├── differ.py       # Git diff generation
+│   ├── kernel.py       # Jupyter code execution
+│   ├── cicada.py       # Code exploration client
+│   ├── config.py       # YAML configuration
 │   └── cli.py          # Command-line interface
 ├── tests/              # Comprehensive test suite
 ├── examples/           # Example markdown files
 │   └── mock_server.py  # Mock backend for testing
+├── .codebook/          # Detailed documentation
+│   ├── LINK_SYNTAX.md
+│   ├── CODE_EXECUTION.md
+│   ├── CICADA_INTEGRATION.md
+│   ├── CONFIGURATION.md
+│   ├── TASKS.md
+│   └── edge-cases/     # Implementation details
 ├── pyproject.toml      # Project configuration
 └── README.md           # This file
 ```

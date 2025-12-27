@@ -34,6 +34,20 @@ This file is a diff of a feature specification. I want you to change the code to
 
 """
 
+DEFAULT_TASK_SUFFIX = """\
+---
+After completing the task, please update the task file with:
+- Description of the feature task that was requested
+- Short description of the changes that were made and why
+Do not include code snippets. Only describe the functional changes that were made.
+Do not remove diff lines from the task file.
+--- FEATURE TASK ---
+...
+--- NOTES ---
+...
+--- SOLUTION ---
+"""
+
 
 @dataclass
 class CodeBookConfig:
@@ -59,7 +73,7 @@ class CodeBookConfig:
 
     # Task customization
     task_prefix: str = field(default_factory=lambda: DEFAULT_TASK_PREFIX)
-    task_suffix: str = ""
+    task_suffix: str = field(default_factory=lambda: DEFAULT_TASK_SUFFIX)
 
     @classmethod
     def load(cls, path: Path | None = None) -> "CodeBookConfig":
@@ -133,7 +147,7 @@ class CodeBookConfig:
             timeout=data.get("timeout", 10.0),
             cache_ttl=data.get("cache_ttl", 60.0),
             task_prefix=data.get("task-prefix", DEFAULT_TASK_PREFIX),
-            task_suffix=data.get("task-suffix", ""),
+            task_suffix=data.get("task-suffix", DEFAULT_TASK_SUFFIX),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -160,6 +174,6 @@ class CodeBookConfig:
         # Only include task customization if non-default
         if self.task_prefix != DEFAULT_TASK_PREFIX:
             result["task-prefix"] = self.task_prefix
-        if self.task_suffix:
+        if self.task_suffix != DEFAULT_TASK_SUFFIX:
             result["task-suffix"] = self.task_suffix
         return result

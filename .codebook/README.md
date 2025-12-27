@@ -26,6 +26,7 @@ codebook run
 - **[Cicada Integration](CICADA_INTEGRATION.md)** - Live code exploration
 - **[Configuration](CONFIGURATION.md)** - YAML config reference
 - **[Tasks](TASKS.md)** - Task management
+- **[Edge Cases](edge-cases/README.md)** - Implementation details and behaviors
 
 ## Project Stats
 

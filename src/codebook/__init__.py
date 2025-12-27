@@ -12,7 +12,7 @@ warnings.filterwarnings("ignore", message=".*GIL.*")
 
 __version__ = "0.1.0"
 
-from .parser import CodeBookParser, CodeBookLink, LinkType
+from .parser import CodeBookParser, CodeBookLink, LinkType, Frontmatter
 from .client import CodeBookClient
 from .renderer import CodeBookRenderer, RenderResult
 from .watcher import CodeBookWatcher
@@ -25,6 +25,7 @@ __all__ = [
     "CodeBookParser",
     "CodeBookLink",
     "LinkType",
+    "Frontmatter",
     "CodeBookClient",
     "CodeBookRenderer",
     "RenderResult",

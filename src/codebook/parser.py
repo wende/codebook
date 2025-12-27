@@ -9,6 +9,13 @@ Supported formats:
 4. Div: <div data-codebook="TEMPLATE">MULTILINE</div>
 5. Exec: <exec lang="python">CODE</exec><output>RESULT</output> - executable code
 6. Cicada: <cicada endpoint="..." params...>RESULT</cicada> - Cicada API queries
+
+Frontmatter support:
+---
+title: My Title
+tags: [tag1, tag2]
+disable: [links, backlinks]
+---
 """
 
 import json
@@ -16,6 +23,8 @@ import re
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Iterator
+
+import yaml
 
 
 class LinkType(Enum):
@@ -29,6 +38,33 @@ class LinkType(Enum):
     DIV = "div"  # <div data-codebook="TEMPLATE">CONTENT</div>
     EXEC = "exec"  # <exec lang="python">CODE</exec><output>RESULT</output>
     CICADA = "cicada"  # <cicada endpoint="...">RESULT</cicada>
+
+
+@dataclass
+class Frontmatter:
+    """Parsed frontmatter from a markdown file.
+
+    Attributes:
+        title: Optional document title
+        tags: List of tags for the document
+        disable: List of features to disable (e.g., 'links', 'backlinks')
+        raw: Raw dictionary of all frontmatter data
+    """
+
+    title: str | None = None
+    tags: list[str] = field(default_factory=list)
+    disable: list[str] = field(default_factory=list)
+    raw: dict = field(default_factory=dict)
+
+    @property
+    def links_disabled(self) -> bool:
+        """Check if link processing is disabled."""
+        return "links" in self.disable
+
+    @property
+    def backlinks_disabled(self) -> bool:
+        """Check if backlink generation is disabled."""
+        return "backlinks" in self.disable
 
 
 @dataclass
@@ -136,6 +172,63 @@ class CodeBookParser:
 
     # Helper pattern to extract attributes from cicada tag
     ATTR_PATTERN = re.compile(r'(\w+)="([^"]*)"')
+
+    # Pattern for YAML frontmatter at the start of a document
+    FRONTMATTER_PATTERN = re.compile(r'^---\n(.*?)\n---\n?', re.DOTALL)
+
+    def parse_frontmatter(self, content: str) -> tuple[Frontmatter, str]:
+        """Parse YAML frontmatter from the beginning of content.
+
+        Frontmatter must start at the very beginning of the file with '---',
+        followed by YAML content, and closed with '---'.
+
+        Args:
+            content: The markdown content to parse
+
+        Returns:
+            Tuple of (Frontmatter object, content without frontmatter)
+        """
+        match = self.FRONTMATTER_PATTERN.match(content)
+        if not match:
+            return Frontmatter(), content
+
+        yaml_content = match.group(1)
+        content_without_frontmatter = content[match.end():]
+
+        try:
+            data = yaml.safe_load(yaml_content) or {}
+        except yaml.YAMLError:
+            # Invalid YAML, return empty frontmatter
+            return Frontmatter(), content
+
+        if not isinstance(data, dict):
+            return Frontmatter(), content
+
+        # Extract known fields
+        title = data.get("title")
+        if title is not None:
+            title = str(title)
+
+        tags = data.get("tags", [])
+        if isinstance(tags, str):
+            tags = [tags]
+        elif not isinstance(tags, list):
+            tags = []
+        tags = [str(t) for t in tags]
+
+        disable = data.get("disable", [])
+        if isinstance(disable, str):
+            disable = [disable]
+        elif not isinstance(disable, list):
+            disable = []
+        disable = [str(d) for d in disable]
+
+        return Frontmatter(
+            title=title,
+            tags=tags,
+            disable=disable,
+            raw=data,
+        ), content_without_frontmatter
 
     def find_links(self, content: str) -> Iterator[CodeBookLink]:
         """Find all codebook links in the given content.

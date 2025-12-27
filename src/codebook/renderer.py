@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from .parser import CodeBookParser, LinkType
+from .parser import CodeBookParser, Frontmatter, LinkType
 from .client import CodeBookClient
 
 
@@ -80,6 +80,7 @@ class RenderResult:
         backlinks_updated: Number of target files updated with backlinks
         changed: Whether the file content was modified
         error: Error message if rendering failed, None otherwise
+        frontmatter: Parsed frontmatter from the file
     """
 
     path: Path
@@ -93,6 +94,7 @@ class RenderResult:
     backlinks_updated: int = 0
     changed: bool = False
     error: str | None = None
+    frontmatter: Frontmatter | None = None
 
     @property
     def success(self) -> bool:
@@ -152,6 +154,15 @@ class CodeBookRenderer:
             result.error = f"Failed to read file: {e}"
             return result
 
+        # Parse frontmatter
+        frontmatter, content_body = self.parser.parse_frontmatter(content)
+        result.frontmatter = frontmatter
+
+        # Check if links are disabled via frontmatter
+        if frontmatter.links_disabled:
+            logger.debug(f"Links disabled via frontmatter in {path}")
+            return result
+
         # Find all links
         all_links = list(self.parser.find_links(content))
 
@@ -209,8 +220,8 @@ class CodeBookRenderer:
             new_content, executed = self._execute_cicada_queries(new_content, cicada_blocks)
             result.cicada_queries_executed = executed
 
-        # Update backlinks in target files for markdown links
-        if markdown_links and not dry_run:
+        # Update backlinks in target files for markdown links (unless disabled)
+        if markdown_links and not dry_run and not frontmatter.backlinks_disabled:
             updated = self._update_backlinks(path, markdown_links)
             result.backlinks_updated = updated
 
