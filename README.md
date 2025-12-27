@@ -12,7 +12,7 @@ CodeBook is a markdown documentation system that embeds live code references usi
 - **Fast**: Built-in TTL caching and efficient batch resolution
 - **Extensible**: Easy to integrate with existing code intelligence backends
 - **Code Execution**: Run Python code blocks via Jupyter kernels with output capture
-- **Code Exploration**: Integrate with [Cicada](https://github.com/cicada-lang/cicada) for live code queries
+- **Code Exploration**: Integrate with [Cicada](https://github.com/wende/cicada) for live code queries
 - **Bidirectional Links**: Automatic backlink generation between markdown files
 - **Task Management**: Capture documentation changes as actionable task files
 - **Configuration File**: YAML-based config for zero-config startup with `codebook run`
