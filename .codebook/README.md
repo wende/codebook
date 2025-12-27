@@ -1,6 +1,9 @@
 # CodeBook Documentation
 
-Dynamic Markdown Documentation with Live Code References.
+Spec Driven Development framework.
+Document features in markdown in you `.codebook` directory.
+Each change can be turned into a task by running `codebook task new "Title of the task" ./scope` [Tasks](TASKS.md)
+These tasks are actionable pieces of work that can be fed to an AI agent to implement.
 
 ## Overview
 
@@ -28,7 +31,7 @@ codebook run
 | Metric    | Value                               |
 | --------- | ----------------------------------- |
 | Templates | [`42`](codebook:project.file_count) |
-| Version   | [`4f4a722`](codebook:codebook.version)  |
+| Version   | [`443a63e`](codebook:codebook.version)  |
 
 ## Documentation Files
 
@@ -36,4 +39,4 @@ codebook run
 
 ---
 
-Rendered by CodeBook [`4f4a722`](codebook:codebook.version)
+Rendered by CodeBook [`443a63e`](codebook:codebook.version)

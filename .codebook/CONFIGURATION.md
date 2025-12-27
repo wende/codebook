@@ -26,8 +26,11 @@ codebook run -c path/to/codebook.yml
 ## Full Configuration Reference
 
 ```yaml
-# Directory to watch for markdown files
+# Directory to store specs, features and task files
 watch_dir: .
+
+# Directory containing tasks. Automatically ignored in watch and render commands.
+tasks_dir: .codebook/tasks
 
 # Enable Python code execution
 exec: true
@@ -182,4 +185,4 @@ codebook watch docs/ --exec --cicada
 
 ---
 
-Rendered by CodeBook [`4f4a722`](codebook:codebook.version)
+Rendered by CodeBook [`0a07c4a`](codebook:codebook.version)

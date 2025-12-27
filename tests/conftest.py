@@ -1,5 +1,14 @@
 """Shared test fixtures and configuration."""
 
+import warnings
+
+# Suppress GIL warning from ujson on Python 3.13+ free-threaded builds
+warnings.filterwarnings(
+    "ignore",
+    message="The global interpreter lock.*",
+    category=RuntimeWarning,
+)
+
 import subprocess
 import tempfile
 from pathlib import Path

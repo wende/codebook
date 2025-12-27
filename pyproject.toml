@@ -74,3 +74,6 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "-v --tb=short"
+filterwarnings = [
+    "ignore:The global interpreter lock.*:RuntimeWarning",
+]

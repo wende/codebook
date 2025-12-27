@@ -671,7 +671,7 @@ def task_new(ctx: click.Context, title: str, scope: Path, include_all: bool) -> 
     date_prefix = date.today().strftime("%Y%m%d")
 
     # Create tasks directory
-    tasks_dir = Path(".codebook/tasks")
+    tasks_dir = Path(cfg.tasks_dir)
     tasks_dir.mkdir(parents=True, exist_ok=True)
 
     task_file = tasks_dir / f"{date_prefix}-{task_name}.md"
@@ -746,37 +746,18 @@ def task_new(ctx: click.Context, title: str, scope: Path, include_all: bool) -> 
         if not file_path.is_file():
             continue
 
-        # Read current content
-        try:
-            current_content = file_path.read_text(encoding="utf-8")
-        except Exception as e:
-            click.echo(f"Error reading {file_path}: {e}", err=True)
-            continue
-
         # Get raw git diff
         diff_output = get_git_diff(file_path)
 
-        file_count += 1
-        lines.append(f"## {file_count}. {file_path}\n\n")
+        if not diff_output:
+            continue
 
-        # Show before content
-        lines.append("### Before\n\n")
-        lines.append("```markdown\n")
-        lines.append(current_content)
-        if not current_content.endswith("\n"):
+        file_count += 1
+        lines.append("```diff\n")
+        lines.append(diff_output)
+        if not diff_output.endswith("\n"):
             lines.append("\n")
         lines.append("```\n\n")
-
-        # Show diff if any
-        if diff_output:
-            lines.append("### Diff\n\n")
-            lines.append("```diff\n")
-            lines.append(diff_output)
-            if not diff_output.endswith("\n"):
-                lines.append("\n")
-            lines.append("```\n\n")
-
-        lines.append("---\n\n")
 
     if file_count == 0:
         click.echo(f"No modified markdown files found in {scope}", err=True)
@@ -798,12 +779,13 @@ def task_new(ctx: click.Context, title: str, scope: Path, include_all: bool) -> 
 def task_list() -> None:
     """List all existing tasks.
 
-    Shows all task files in .codebook/tasks/ directory.
+    Shows all task files in the configured tasks directory.
 
     Example:
         codebook task list
     """
-    tasks_dir = Path(".codebook/tasks")
+    cfg = CodeBookConfig.load()
+    tasks_dir = Path(cfg.tasks_dir)
 
     if not tasks_dir.exists():
         click.echo("No tasks directory found.")
@@ -850,7 +832,8 @@ def task_delete(title: str | None, force: bool) -> None:
     """
     import re
 
-    tasks_dir = Path(".codebook/tasks")
+    cfg = CodeBookConfig.load()
+    tasks_dir = Path(cfg.tasks_dir)
 
     if not tasks_dir.exists():
         click.echo("No tasks directory found.", err=True)

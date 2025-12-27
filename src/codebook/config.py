@@ -42,6 +42,9 @@ class CodeBookConfig:
     # Watch directory
     watch_dir: str = "."
 
+    # Tasks directory (automatically ignored in watch and render commands)
+    tasks_dir: str = ".codebook/tasks"
+
     # Features
     exec: bool = False
     recursive: bool = True
@@ -122,6 +125,7 @@ class CodeBookConfig:
 
         return cls(
             watch_dir=data.get("watch_dir", "."),
+            tasks_dir=data.get("tasks_dir", ".codebook/tasks"),
             exec=data.get("exec", False),
             recursive=data.get("recursive", True),
             backend=backend,
@@ -136,6 +140,7 @@ class CodeBookConfig:
         """Convert config to dictionary."""
         result = {
             "watch_dir": self.watch_dir,
+            "tasks_dir": self.tasks_dir,
             "exec": self.exec,
             "recursive": self.recursive,
             "timeout": self.timeout,

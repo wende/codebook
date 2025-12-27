@@ -163,10 +163,14 @@ class CodeBookDiffer:
             # Render HEAD content too for fair comparison
             head_rendered, _ = self.renderer.render_content(head_content)
 
+            # Normalize trailing whitespace to avoid false positives
+            def normalize_lines(text: str) -> list[str]:
+                return [line.rstrip() + "\n" for line in text.splitlines()]
+
             # Generate unified diff
             diff_lines = difflib.unified_diff(
-                head_rendered.splitlines(keepends=True),
-                rendered_content.splitlines(keepends=True),
+                normalize_lines(head_rendered),
+                normalize_lines(rendered_content),
                 fromfile=f"a/{rel_path}",
                 tofile=f"b/{rel_path}",
             )
