@@ -8,9 +8,11 @@ CodeBook includes a task management feature for capturing documentation changes.
 codebook task new "Title of the task" ./scope
 ```
 
-This creates `.codebook/tasks/TITLE_OF_THE_TASK.md` containing:
+This creates `.codebook/tasks/YYYYMMDD-TITLE_OF_THE_TASK.md` containing:
 - Current content of each modified file
 - Git diff showing changes from HEAD
+
+Users can delete the tasks by running `codebook task delete` with the "Title of the task" or without it the pick tool will be used to select the task to delete from the list of tasks.
 
 ## Options
 
@@ -81,4 +83,4 @@ diff --git a/path/to/file.md b/path/to/file.md
 
 ---
 
-Rendered by CodeBook [`4f4a722`](codebook:codebook.version)
+Rendered by CodeBook [`3f2e42c`](codebook:codebook.version)

@@ -643,7 +643,7 @@ def task() -> None:
 def task_new(ctx: click.Context, title: str, scope: Path, include_all: bool) -> None:
     """Create a new task capturing modified files and their diffs.
 
-    Creates a task file at .codebook/tasks/TITLE.md containing
+    Creates a task file at .codebook/tasks/YYYYMMDD-TITLE.md containing
     the original content and git diff for each MODIFIED file in scope.
 
     By default, only includes files with uncommitted changes.
@@ -655,16 +655,20 @@ def task_new(ctx: click.Context, title: str, scope: Path, include_all: bool) -> 
         codebook task new "Full Snapshot" ./docs --all
     """
     import re
+    from datetime import date
 
     # Convert title to UPPER_SNAKE_CASE
     task_name = re.sub(r"[^\w\s]", "", title)
     task_name = re.sub(r"\s+", "_", task_name).upper()
 
+    # Add date prefix
+    date_prefix = date.today().strftime("%Y%m%d")
+
     # Create tasks directory
     tasks_dir = Path(".codebook/tasks")
     tasks_dir.mkdir(parents=True, exist_ok=True)
 
-    task_file = tasks_dir / f"{task_name}.md"
+    task_file = tasks_dir / f"{date_prefix}-{task_name}.md"
 
     # Get modified files from git
     def get_modified_files(scope_path: Path) -> set[Path]:
@@ -772,6 +776,138 @@ def task_new(ctx: click.Context, title: str, scope: Path, include_all: bool) -> 
     # Write task file
     task_file.write_text("".join(lines), encoding="utf-8")
     click.echo(f"Created task: {task_file} ({file_count} file(s))")
+
+
+@task.command("list")
+def task_list() -> None:
+    """List all existing tasks.
+
+    Shows all task files in .codebook/tasks/ directory.
+
+    Example:
+        codebook task list
+    """
+    tasks_dir = Path(".codebook/tasks")
+
+    if not tasks_dir.exists():
+        click.echo("No tasks directory found.")
+        return
+
+    task_files = sorted(tasks_dir.glob("*.md"))
+
+    if not task_files:
+        click.echo("No tasks found.")
+        return
+
+    click.echo("Tasks:")
+    for task_file in task_files:
+        # Parse filename to extract date and title
+        name = task_file.stem
+        # Check if filename has date prefix (YYYYMMDD-)
+        if len(name) > 9 and name[8] == "-" and name[:8].isdigit():
+            date_part = name[:8]
+            title_part = name[9:]
+            formatted_date = f"{date_part[:4]}-{date_part[4:6]}-{date_part[6:8]}"
+            click.echo(f"  [{formatted_date}] {title_part}")
+        else:
+            click.echo(f"  {name}")
+
+
+@task.command("delete")
+@click.argument("title", type=str, required=False)
+@click.option(
+    "--force",
+    "-f",
+    is_flag=True,
+    help="Delete without confirmation",
+)
+def task_delete(title: str | None, force: bool) -> None:
+    """Delete a task file.
+
+    If TITLE is provided, deletes the matching task file (ignoring date prefix).
+    If no TITLE is provided, presents an interactive picker to select a task.
+
+    Example:
+        codebook task delete "API Update"
+        codebook task delete
+        codebook task delete "API Update" --force
+    """
+    import re
+
+    tasks_dir = Path(".codebook/tasks")
+
+    if not tasks_dir.exists():
+        click.echo("No tasks directory found.", err=True)
+        return
+
+    task_files = sorted(tasks_dir.glob("*.md"))
+
+    if not task_files:
+        click.echo("No tasks found.", err=True)
+        return
+
+    def parse_task_title(filename: str) -> str:
+        """Extract title from task filename (stripping date prefix if present)."""
+        # Check if filename has date prefix (YYYYMMDD-)
+        if len(filename) > 9 and filename[8] == "-" and filename[:8].isdigit():
+            return filename[9:]
+        return filename
+
+    def format_task_choice(task_file: Path) -> str:
+        """Format a task file for display in the picker."""
+        name = task_file.stem
+        if len(name) > 9 and name[8] == "-" and name[:8].isdigit():
+            date_part = name[:8]
+            title_part = name[9:]
+            formatted_date = f"{date_part[:4]}-{date_part[4:6]}-{date_part[6:8]}"
+            return f"[{formatted_date}] {title_part}"
+        return name
+
+    target_file: Path | None = None
+
+    if title:
+        # Convert title to UPPER_SNAKE_CASE for matching
+        search_name = re.sub(r"[^\w\s]", "", title)
+        search_name = re.sub(r"\s+", "_", search_name).upper()
+
+        # Find matching task file
+        for task_file in task_files:
+            task_title = parse_task_title(task_file.stem)
+            if task_title == search_name:
+                target_file = task_file
+                break
+
+        if not target_file:
+            click.echo(f"Task not found: {title}", err=True)
+            click.echo("Available tasks:")
+            for task_file in task_files:
+                click.echo(f"  {format_task_choice(task_file)}")
+            return
+    else:
+        # Interactive picker
+        choices = {format_task_choice(f): f for f in task_files}
+        choice_list = list(choices.keys())
+
+        click.echo("Select a task to delete:")
+        for i, choice in enumerate(choice_list, 1):
+            click.echo(f"  {i}. {choice}")
+
+        selection = click.prompt(
+            "Enter number",
+            type=click.IntRange(1, len(choice_list)),
+        )
+        target_file = choices[choice_list[selection - 1]]
+
+    # Confirm deletion
+    if not force:
+        task_display = format_task_choice(target_file)
+        if not click.confirm(f"Delete task '{task_display}'?"):
+            click.echo("Cancelled.")
+            return
+
+    # Delete the file
+    target_file.unlink()
+    click.echo(f"Deleted: {target_file}")
 
 
 if __name__ == "__main__":
