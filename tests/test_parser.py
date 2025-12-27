@@ -267,3 +267,114 @@ Third paragraph with [`value2`](codebook:template2).
         links = list(parser.find_links(content))
 
         assert len(links) == 1
+
+
+class TestIncompleteTagDetection:
+    """Tests for incomplete tag detection (mid-edit protection)."""
+
+    @pytest.fixture
+    def parser(self) -> CodeBookParser:
+        """Create a parser instance."""
+        return CodeBookParser()
+
+    # Cicada tag tests
+    def test_incomplete_cicada_missing_closing_bracket(self, parser: CodeBookParser):
+        """Should detect cicada tag with missing > at end of file."""
+        content = '<cicada endpoint="search-function" function_name="render"'
+        assert parser.has_incomplete_tags(content) is True
+
+    def test_incomplete_cicada_missing_closing_tag(self, parser: CodeBookParser):
+        """Should detect cicada tag without </cicada>."""
+        content = '<cicada endpoint="search-function">\nsome content'
+        assert parser.has_incomplete_tags(content) is True
+
+    def test_incomplete_cicada_unclosed_quote(self, parser: CodeBookParser):
+        """Should detect cicada tag with unclosed quote."""
+        content = '<cicada endpoint="search-function function_name="render">\nresult\n</cicada>'
+        assert parser.has_incomplete_tags(content) is True
+
+    def test_complete_cicada_tag(self, parser: CodeBookParser):
+        """Should not flag complete cicada tags."""
+        content = '<cicada endpoint="search-function" function_name="render">\nresult\n</cicada>'
+        assert parser.has_incomplete_tags(content) is False
+
+    # Exec tag tests
+    def test_incomplete_exec_missing_closing_bracket(self, parser: CodeBookParser):
+        """Should detect exec tag with missing >."""
+        content = '<exec lang="python"'
+        assert parser.has_incomplete_tags(content) is True
+
+    def test_incomplete_exec_missing_closing_tag(self, parser: CodeBookParser):
+        """Should detect exec tag without </exec>."""
+        content = '<exec lang="python">\nprint("hello")'
+        assert parser.has_incomplete_tags(content) is True
+
+    def test_complete_exec_tag(self, parser: CodeBookParser):
+        """Should not flag complete exec tags."""
+        content = '<exec lang="python">\nprint("hello")\n</exec>\n<output>\nhello\n</output>'
+        assert parser.has_incomplete_tags(content) is False
+
+    # Div tag tests
+    def test_incomplete_div_missing_closing_bracket(self, parser: CodeBookParser):
+        """Should detect div tag with missing >."""
+        content = '<div data-codebook="template"'
+        assert parser.has_incomplete_tags(content) is True
+
+    def test_incomplete_div_missing_closing_tag(self, parser: CodeBookParser):
+        """Should detect div tag without </div>."""
+        content = '<div data-codebook="template">\ncontent'
+        assert parser.has_incomplete_tags(content) is True
+
+    def test_complete_div_tag(self, parser: CodeBookParser):
+        """Should not flag complete div tags."""
+        content = '<div data-codebook="template">\ncontent\n</div>'
+        assert parser.has_incomplete_tags(content) is False
+
+    # Span tag tests
+    def test_incomplete_span_missing_closing_bracket(self, parser: CodeBookParser):
+        """Should detect span tag with missing >."""
+        content = '<span data-codebook="template"'
+        assert parser.has_incomplete_tags(content) is True
+
+    def test_incomplete_span_missing_closing_tag(self, parser: CodeBookParser):
+        """Should detect span tag without </span>."""
+        content = '<span data-codebook="template">value'
+        assert parser.has_incomplete_tags(content) is True
+
+    def test_complete_span_tag(self, parser: CodeBookParser):
+        """Should not flag complete span tags."""
+        content = '<span data-codebook="template">value</span>'
+        assert parser.has_incomplete_tags(content) is False
+
+    # Mixed content tests
+    def test_content_with_no_tags(self, parser: CodeBookParser):
+        """Should not flag content with no special tags."""
+        content = "Just regular markdown with [`value`](codebook:test)"
+        assert parser.has_incomplete_tags(content) is False
+
+    def test_mixed_complete_tags(self, parser: CodeBookParser):
+        """Should not flag content with multiple complete tags."""
+        content = """
+# Documentation
+
+<span data-codebook="count">42</span>
+
+<div data-codebook="list">
+- item 1
+- item 2
+</div>
+
+<cicada endpoint="query" query="test">
+results here
+</cicada>
+"""
+        assert parser.has_incomplete_tags(content) is False
+
+    def test_one_incomplete_among_complete(self, parser: CodeBookParser):
+        """Should detect incomplete tag even when other tags are complete."""
+        content = """
+<span data-codebook="count">42</span>
+
+<cicada endpoint="query
+"""
+        assert parser.has_incomplete_tags(content) is True

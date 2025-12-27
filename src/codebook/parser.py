@@ -307,3 +307,80 @@ class CodeBookParser:
             Number of codebook links found
         """
         return len(list(self.find_links(content)))
+
+    def has_incomplete_tags(self, content: str) -> bool:
+        """Check if content contains incomplete (being edited) tags.
+
+        This detects tags that are partially written, such as:
+        - <cicada endpoint="search-function (missing closing >)
+        - <cicada endpoint="search-function"> (missing </cicada>)
+        - <exec lang="python (missing closing >)
+        - <div data-codebook="template (missing closing >)
+        - <span data-codebook="template (missing closing >)
+
+        Args:
+            content: The markdown content to check
+
+        Returns:
+            True if incomplete tags are detected
+        """
+        # Patterns for opening tags that might be incomplete
+        incomplete_patterns = [
+            # <cicada with attributes but no closing > before </cicada> or EOF
+            (r'<cicada\s+[^>]*$', None),  # <cicada ... at end of content
+            (r'<cicada\s+(?:[^>]*\n)+[^>]*$', None),  # <cicada ... multiline, no >
+            # <cicada ...> without </cicada>
+            (r'<cicada\s+[^>]+>', r'</cicada>'),
+            # <exec with no closing >
+            (r'<exec\s+[^>]*$', None),
+            # <exec ...> without </exec>
+            (r'<exec\s+[^>]+>', r'</exec>'),
+            # <div data-codebook with no closing >
+            (r'<div\s+data-codebook="[^"]*$', None),
+            (r'<div\s+data-codebook="[^"]*"[^>]*$', None),
+            # <div data-codebook=...> without </div>
+            (r'<div\s+data-codebook="[^"]*"[^>]*>', r'</div>'),
+            # <span data-codebook with no closing >
+            (r'<span\s+data-codebook="[^"]*$', None),
+            (r'<span\s+data-codebook="[^"]*"[^>]*$', None),
+            # <span data-codebook=...> without </span>
+            (r'<span\s+data-codebook="[^"]*"[^>]*>', r'</span>'),
+        ]
+
+        for open_pattern, close_tag in incomplete_patterns:
+            matches = list(re.finditer(open_pattern, content, re.DOTALL))
+            for match in matches:
+                if close_tag is None:
+                    # Pattern itself indicates incompleteness (no closing >)
+                    return True
+                else:
+                    # Check if there's a closing tag after the opening
+                    remaining = content[match.end():]
+                    if close_tag not in remaining:
+                        return True
+
+        # Check for unclosed quotes in attribute values within tag openings
+        # This catches <cicada endpoint="value  (missing closing quote)
+        tag_starts = [
+            (r'<cicada\s+', r'>'),
+            (r'<exec\s+', r'>'),
+            (r'<div\s+data-codebook=', r'>'),
+            (r'<span\s+data-codebook=', r'>'),
+        ]
+
+        for start_pattern, end_char in tag_starts:
+            for match in re.finditer(start_pattern, content):
+                start_pos = match.end()
+                # Find the closing > for this tag
+                end_pos = content.find(end_char, start_pos)
+                if end_pos == -1:
+                    # No closing >, definitely incomplete
+                    return True
+                # Check for unbalanced quotes in the attributes
+                attr_content = content[start_pos:end_pos]
+                quote_count = attr_content.count('"')
+                if quote_count % 2 != 0:
+                    # Odd number of quotes means unclosed quote
+                    return True
+
+        return False

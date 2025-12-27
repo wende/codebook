@@ -16,6 +16,7 @@ from typing import Callable
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler, FileModifiedEvent, FileCreatedEvent
 
+from .parser import CodeBookParser
 from .renderer import CodeBookRenderer
 
 logger = logging.getLogger(__name__)
@@ -144,6 +145,7 @@ class CodeBookWatcher:
         self._watching_paths: set[Path] = set()
         self._recently_rendered: dict[str, float] = {}  # Track recently rendered files
         self._render_cooldown = 2.0  # Seconds to ignore events after rendering
+        self._parser = CodeBookParser()  # For incomplete tag detection
 
     def _handle_file_change(self, path: Path) -> None:
         """Handle a file change event."""
@@ -156,6 +158,15 @@ class CodeBookWatcher:
                 logger.debug(f"Skipping recently rendered file: {path}")
                 return
             del self._recently_rendered[path_str]
+
+        # Check for incomplete tags (user may be mid-edit)
+        try:
+            content = path.read_text(encoding="utf-8")
+            if self._parser.has_incomplete_tags(content):
+                logger.debug(f"Skipping file with incomplete tags (mid-edit): {path}")
+                return
+        except Exception as e:
+            logger.debug(f"Could not check for incomplete tags in {path}: {e}")
 
         logger.info(f"File changed: {path}")
 
@@ -215,8 +226,8 @@ class CodeBookWatcher:
         if self._observer is None:
             raise RuntimeError("No directories configured for watching")
 
-        logger.info("Starting file watcher...")
         self._observer.start()
+        logger.info("File watcher ready. Waiting for changes...")
 
         try:
             while self._observer.is_alive():

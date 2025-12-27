@@ -72,10 +72,10 @@ The URL gets replaced while the link text stays the same.
 Returns the current CodeBook version (git tag/SHA):
 
 ```markdown
-[`dev`](codebook:codebook.version)
+[`4f4a722`](codebook:codebook.version)
 ```
 
-**Current version:** [`dev`](codebook:codebook.version)
+**Current version:** [`4f4a722`](codebook:codebook.version)
 
 ## Template Resolution
 
@@ -88,4 +88,4 @@ Results are cached based on the `cache_ttl` setting.
 
 ---
 
-Rendered by CodeBook [`dev`](codebook:codebook.version)
+Rendered by CodeBook [`4f4a722`](codebook:codebook.version)

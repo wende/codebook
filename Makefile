@@ -3,7 +3,7 @@
 # Configuration
 CICADA_PORT ?= 9999
 CODEBOOK_PORT ?= 3000
-WATCH_DIR ?= examples
+WATCH_DIR ?= .codebook
 
 .PHONY: all cicada mock watch dev stop test clean
 

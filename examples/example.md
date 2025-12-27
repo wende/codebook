@@ -123,4 +123,4 @@ codebook watch examples/ --base-url http://localhost:3000
 
 ---
 
-Rendered by CodeBook [`dev`](codebook:codebook.version)
+Rendered by CodeBook [`4f4a722`](codebook:codebook.version)

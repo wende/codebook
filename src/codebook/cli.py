@@ -634,27 +634,27 @@ def task() -> None:
 @click.argument("title", type=str)
 @click.argument("scope", type=click.Path(exists=True, path_type=Path))
 @click.option(
-    "--recursive/--no-recursive",
-    default=True,
-    help="Process subdirectories recursively",
+    "--all",
+    "include_all",
+    is_flag=True,
+    help="Include all files, not just modified ones",
 )
 @click.pass_context
-def task_new(ctx: click.Context, title: str, scope: Path, recursive: bool) -> None:
-    """Create a new task capturing current file state and diffs.
+def task_new(ctx: click.Context, title: str, scope: Path, include_all: bool) -> None:
+    """Create a new task capturing modified files and their diffs.
 
     Creates a task file at .codebook/tasks/TITLE.md containing
-    the original content and git diff for each file in scope.
+    the original content and git diff for each MODIFIED file in scope.
+
+    By default, only includes files with uncommitted changes.
+    Use --all to include all files regardless of git status.
 
     Example:
         codebook task new "Feature Documentation" ./docs
         codebook task new "API Update" ./README.md
+        codebook task new "Full Snapshot" ./docs --all
     """
     import re
-    import difflib
-
-    client = ctx.obj["client"]
-    renderer = CodeBookRenderer(client)
-    differ = CodeBookDiffer(renderer)
 
     # Convert title to UPPER_SNAKE_CASE
     task_name = re.sub(r"[^\w\s]", "", title)
@@ -666,21 +666,69 @@ def task_new(ctx: click.Context, title: str, scope: Path, recursive: bool) -> No
 
     task_file = tasks_dir / f"{task_name}.md"
 
+    # Get modified files from git
+    def get_modified_files(scope_path: Path) -> set[Path]:
+        """Get list of modified files (staged + unstaged) in scope."""
+        try:
+            result = subprocess.run(
+                ["git", "status", "--porcelain", str(scope_path)],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode != 0:
+                return set()
+            modified = set()
+            for line in result.stdout.split("\n"):
+                if line and len(line) >= 3:
+                    # Format: "XY filename" where XY is 2-char status + space
+                    file_path = line[3:]
+                    # Handle renamed files: "R  old -> new"
+                    if " -> " in file_path:
+                        file_path = file_path.split(" -> ")[1]
+                    # Resolve to absolute path for comparison
+                    modified.add(Path(file_path).resolve())
+            return modified
+        except Exception:
+            return set()
+
+    # Get raw git diff for a file
+    def get_git_diff(file_path: Path) -> str | None:
+        """Get raw git diff for a file."""
+        try:
+            result = subprocess.run(
+                ["git", "diff", str(file_path)],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return result.stdout
+            return None
+        except Exception:
+            return None
+
     # Collect files to process
     if scope.is_file():
-        files = [scope]
+        candidates = [scope]
     else:
-        pattern = "**/*.md" if recursive else "*.md"
-        files = sorted(scope.glob(pattern))
+        candidates = sorted(scope.glob("**/*.md"))
+
+    # Filter to only modified files unless --all
+    if include_all:
+        files = candidates
+    else:
+        modified = get_modified_files(scope)
+        files = [f for f in candidates if f.resolve() in modified]
 
     if not files:
-        click.echo(f"No markdown files found in {scope}", err=True)
+        click.echo(f"No modified markdown files found in {scope}", err=True)
+        click.echo("Use --all to include all files regardless of git status", err=True)
         return
 
     # Build task content
     lines = [f"# {title}\n\n"]
+    file_count = 0
 
-    for i, file_path in enumerate(files, 1):
+    for file_path in files:
         if not file_path.is_file():
             continue
 
@@ -691,10 +739,11 @@ def task_new(ctx: click.Context, title: str, scope: Path, recursive: bool) -> No
             click.echo(f"Error reading {file_path}: {e}", err=True)
             continue
 
-        # Get diff
-        diff_result = differ.diff_file(file_path)
+        # Get raw git diff
+        diff_output = get_git_diff(file_path)
 
-        lines.append(f"## {i}. {file_path}\n\n")
+        file_count += 1
+        lines.append(f"## {file_count}. {file_path}\n\n")
 
         # Show before content
         lines.append("### Before\n\n")
@@ -705,21 +754,24 @@ def task_new(ctx: click.Context, title: str, scope: Path, recursive: bool) -> No
         lines.append("```\n\n")
 
         # Show diff if any
-        if diff_result.has_changes:
+        if diff_output:
             lines.append("### Diff\n\n")
             lines.append("```diff\n")
-            lines.append(diff_result.diff)
-            if not diff_result.diff.endswith("\n"):
+            lines.append(diff_output)
+            if not diff_output.endswith("\n"):
                 lines.append("\n")
             lines.append("```\n\n")
-        else:
-            lines.append("*No changes from HEAD*\n\n")
 
         lines.append("---\n\n")
 
+    if file_count == 0:
+        click.echo(f"No modified markdown files found in {scope}", err=True)
+        click.echo("Use --all to include all files regardless of git status", err=True)
+        return
+
     # Write task file
     task_file.write_text("".join(lines), encoding="utf-8")
-    click.echo(f"Created task: {task_file}")
+    click.echo(f"Created task: {task_file} ({file_count} file(s))")
 
 
 if __name__ == "__main__":
