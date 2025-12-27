@@ -66,4 +66,7 @@ diff --git a/path/to/file.md b/path/to/file.md
 
 ---
 
-Rendered by CodeBook [`ee158b4`](codebook:codebook.version)
+Rendered by CodeBook [`6742eaf`](codebook:codebook.version)
+
+--- BACKLINKS ---
+[Tasks](README.md "codebook:backlink")

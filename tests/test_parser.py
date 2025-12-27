@@ -378,3 +378,165 @@ results here
 <cicada endpoint="query
 """
         assert parser.has_incomplete_tags(content) is True
+
+
+class TestMarkdownLinks:
+    """Tests for markdown link detection (bidirectional links)."""
+
+    @pytest.fixture
+    def parser(self) -> CodeBookParser:
+        """Create a parser instance."""
+        return CodeBookParser()
+
+    def test_find_markdown_links_to_md_files(self, parser: CodeBookParser):
+        """Should find links to .md files."""
+        from codebook.parser import LinkType
+
+        content = "[Link Text](other-file.md)"
+
+        links = list(parser.find_links(content))
+
+        assert len(links) == 1
+        assert links[0].link_type == LinkType.MARKDOWN_LINK
+        assert links[0].value == "other-file.md"
+        assert links[0].extra == "Link Text"
+
+    def test_find_markdown_links_with_relative_path(self, parser: CodeBookParser):
+        """Should find links with relative paths."""
+        from codebook.parser import LinkType
+
+        content = "[Documentation](./docs/README.md)"
+
+        links = list(parser.find_links(content))
+
+        assert len(links) == 1
+        assert links[0].link_type == LinkType.MARKDOWN_LINK
+        assert links[0].value == "./docs/README.md"
+
+    def test_find_markdown_links_with_parent_path(self, parser: CodeBookParser):
+        """Should find links with parent directory paths."""
+        from codebook.parser import LinkType
+
+        content = "[Parent Doc](../other/file.md)"
+
+        links = list(parser.find_links(content))
+
+        assert len(links) == 1
+        assert links[0].link_type == LinkType.MARKDOWN_LINK
+        assert links[0].value == "../other/file.md"
+
+    def test_ignore_non_md_links(self, parser: CodeBookParser):
+        """Should not match links to non-.md files."""
+        content = """
+[Website](https://example.com)
+[Image](./image.png)
+[Script](./script.py)
+"""
+
+        links = list(parser.find_links(content))
+
+        # Should not find any MARKDOWN_LINK types
+        from codebook.parser import LinkType
+        md_links = [l for l in links if l.link_type == LinkType.MARKDOWN_LINK]
+        assert len(md_links) == 0
+
+    def test_find_multiple_markdown_links(self, parser: CodeBookParser):
+        """Should find multiple markdown links in content."""
+        from codebook.parser import LinkType
+
+        content = """
+See [introduction](intro.md) for getting started.
+Also check [advanced topics](advanced.md) for more.
+"""
+
+        links = list(parser.find_links(content))
+        md_links = [l for l in links if l.link_type == LinkType.MARKDOWN_LINK]
+
+        assert len(md_links) == 2
+        assert md_links[0].value == "intro.md"
+        assert md_links[1].value == "advanced.md"
+
+    def test_has_codebook_links_includes_markdown_links(self, parser: CodeBookParser):
+        """has_codebook_links should return True for markdown links."""
+        content = "[Doc](other.md)"
+
+        assert parser.has_codebook_links(content) is True
+
+
+class TestBacklinks:
+    """Tests for backlink parsing."""
+
+    @pytest.fixture
+    def parser(self) -> CodeBookParser:
+        """Create a parser instance."""
+        return CodeBookParser()
+
+    def test_find_backlinks(self, parser: CodeBookParser):
+        """Should find backlinks with codebook:backlink attribute."""
+        from codebook.parser import LinkType
+
+        content = '[Link Text](source.md "codebook:backlink")'
+
+        links = list(parser.find_links(content))
+
+        assert len(links) == 1
+        assert links[0].link_type == LinkType.BACKLINK
+        assert links[0].value == "source.md"
+        assert links[0].extra == "Link Text"
+
+    def test_backlinks_in_section(self, parser: CodeBookParser):
+        """Should find backlinks in a BACKLINKS section."""
+        from codebook.parser import LinkType
+
+        content = """
+# Document
+
+Some content here.
+
+--- BACKLINKS ---
+[Related Doc](related.md "codebook:backlink")
+[Another Doc](another.md "codebook:backlink")
+"""
+
+        links = list(parser.find_links(content))
+        backlinks = [l for l in links if l.link_type == LinkType.BACKLINK]
+
+        assert len(backlinks) == 2
+        assert backlinks[0].value == "related.md"
+        assert backlinks[1].value == "another.md"
+
+    def test_render_markdown_link(self, parser: CodeBookParser):
+        """Should render markdown links correctly."""
+        from codebook.parser import CodeBookLink, LinkType
+
+        link = CodeBookLink(
+            full_match="[Text](file.md)",
+            value="file.md",
+            template="",
+            start=0,
+            end=15,
+            link_type=LinkType.MARKDOWN_LINK,
+            extra="Text",
+        )
+
+        result = link.render("new-file.md")
+
+        assert result == "[Text](new-file.md)"
+
+    def test_render_backlink(self, parser: CodeBookParser):
+        """Should render backlinks correctly."""
+        from codebook.parser import CodeBookLink, LinkType
+
+        link = CodeBookLink(
+            full_match='[Text](file.md "codebook:backlink")',
+            value="file.md",
+            template="backlink",
+            start=0,
+            end=35,
+            link_type=LinkType.BACKLINK,
+            extra="Text",
+        )
+
+        result = link.render("new-file.md")
+
+        assert result == '[Text](new-file.md "codebook:backlink")'

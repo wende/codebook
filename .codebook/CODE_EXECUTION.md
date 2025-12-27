@@ -55,7 +55,25 @@ now = datetime.now()
 print(f"Generated: {now.strftime('%Y-%m-%d %H:%M')}")
 </exec>
 <output>
-Generated: 2025-12-27 23:23
+Generated: 2025-12-27 23:48
+</output>
+
+## Example: Importing Project Modules
+
+Code blocks have access to your project's modules via `sys.path`:
+
+<exec lang="python">
+from codebook.parser import CodeBookParser
+
+content = "[`old`](codebook:my.template)"
+parser = CodeBookParser()
+links = list(parser.find_links(content))
+print(f"Found {len(links)} link(s)")
+print(f"Template: {links[0].template}")
+</exec>
+<output>
+Found 1 link(s)
+Template: my.template
 </output>
 
 ## State Persistence
@@ -105,6 +123,19 @@ Currently only Python is supported via `ipykernel`. The kernel must be installed
 pip install ipykernel
 ```
 
+<cicada endpoint="search-module" module_name=".codebook/CODE_EXECUTION.md" format="json" jq="">
+{
+  "module": ".codebook/CODE_EXECUTION.md",
+  "location": ".codebook/CODE_EXECUTION.md:1",
+  "moduledoc": null,
+  "counts": {
+    "public": 0,
+    "private": 0
+  },
+  "functions": []
+}
+</cicada>
+
 ## Error Handling
 
 Errors are captured and displayed in the output, stripped of ANSI escape codes:
@@ -116,13 +147,18 @@ x = 1 / 0
 <output>
 Error: ---------------------------------------------------------------------------
 ZeroDivisionError                         Traceback (most recent call last)
-Cell In[14], line 1
+Cell In[107], line 1
 ----> 1 x = 1 / 0
 
 ZeroDivisionError: division by zero
 </output>
 ```
 
+
+
 ---
 
-Rendered by CodeBook [`ee158b4`](codebook:codebook.version)
+Rendered by CodeBook [`6742eaf`](codebook:codebook.version)
+
+--- BACKLINKS ---
+[Code Execution](README.md "codebook:backlink")

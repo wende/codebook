@@ -308,3 +308,222 @@ More content.
         assert "# Header" in result
         assert "## Subheader" in result
         assert "[`NEW`](codebook:test)" in result
+
+
+class TestBacklinkUpdates:
+    """Tests for bidirectional link/backlink functionality."""
+
+    @pytest.fixture
+    def mock_client(self) -> MagicMock:
+        """Create a mock CodeBook client."""
+        client = MagicMock(spec=CodeBookClient)
+        client.resolve_batch.return_value = {}
+        return client
+
+    @pytest.fixture
+    def renderer(self, mock_client: MagicMock) -> CodeBookRenderer:
+        """Create a renderer with mock client."""
+        return CodeBookRenderer(mock_client)
+
+    def test_render_finds_markdown_links(
+        self,
+        renderer: CodeBookRenderer,
+        temp_dir: Path,
+    ):
+        """Should count markdown links to .md files."""
+        md_file = temp_dir / "source.md"
+        md_file.write_text("[Link](other.md)")
+
+        result = renderer.render_file(md_file, dry_run=True)
+
+        assert result.backlinks_found == 1
+
+    def test_render_creates_backlink_in_target(
+        self,
+        renderer: CodeBookRenderer,
+        temp_dir: Path,
+    ):
+        """Should create backlink in target file."""
+        source = temp_dir / "source.md"
+        target = temp_dir / "target.md"
+
+        source.write_text("[Link to Target](target.md)")
+        target.write_text("# Target Document\n\nSome content.")
+
+        renderer.render_file(source)
+
+        target_content = target.read_text()
+        assert "--- BACKLINKS ---" in target_content
+        assert 'source.md "codebook:backlink")' in target_content
+
+    def test_render_appends_to_existing_backlinks(
+        self,
+        renderer: CodeBookRenderer,
+        temp_dir: Path,
+    ):
+        """Should append to existing BACKLINKS section."""
+        source = temp_dir / "source.md"
+        target = temp_dir / "target.md"
+
+        source.write_text("[New Link](target.md)")
+        target.write_text(
+            '# Target\n\n--- BACKLINKS ---\n[Old](old.md "codebook:backlink")\n'
+        )
+
+        renderer.render_file(source)
+
+        target_content = target.read_text()
+        assert '[Old](old.md "codebook:backlink")' in target_content
+        assert 'source.md "codebook:backlink")' in target_content
+
+    def test_render_does_not_duplicate_backlinks(
+        self,
+        renderer: CodeBookRenderer,
+        temp_dir: Path,
+    ):
+        """Should not add duplicate backlinks."""
+        source = temp_dir / "source.md"
+        target = temp_dir / "target.md"
+
+        source.write_text("[Link](target.md)")
+        target.write_text(
+            '# Target\n\n--- BACKLINKS ---\n[Link](source.md "codebook:backlink")\n'
+        )
+
+        renderer.render_file(source)
+
+        target_content = target.read_text()
+        # Count occurrences of source.md backlink
+        count = target_content.count('source.md "codebook:backlink")')
+        assert count == 1
+
+    def test_dry_run_does_not_update_backlinks(
+        self,
+        renderer: CodeBookRenderer,
+        temp_dir: Path,
+    ):
+        """Dry run should not modify target files."""
+        source = temp_dir / "source.md"
+        target = temp_dir / "target.md"
+
+        source.write_text("[Link](target.md)")
+        target.write_text("# Target\n\nOriginal content.")
+
+        result = renderer.render_file(source, dry_run=True)
+
+        target_content = target.read_text()
+        assert "--- BACKLINKS ---" not in target_content
+        assert result.backlinks_updated == 0
+
+    def test_handles_relative_path_with_subdirectory(
+        self,
+        renderer: CodeBookRenderer,
+        temp_dir: Path,
+    ):
+        """Should handle links to files in subdirectories."""
+        subdir = temp_dir / "docs"
+        subdir.mkdir()
+        source = temp_dir / "source.md"
+        target = subdir / "target.md"
+
+        source.write_text("[Link](docs/target.md)")
+        target.write_text("# Target")
+
+        renderer.render_file(source)
+
+        target_content = target.read_text()
+        assert "--- BACKLINKS ---" in target_content
+
+    def test_handles_nonexistent_target(
+        self,
+        renderer: CodeBookRenderer,
+        temp_dir: Path,
+    ):
+        """Should not fail when target file doesn't exist."""
+        source = temp_dir / "source.md"
+        source.write_text("[Link](nonexistent.md)")
+
+        result = renderer.render_file(source)
+
+        assert result.success is True
+        assert result.backlinks_found == 1
+        assert result.backlinks_updated == 0
+
+    def test_render_result_tracks_backlink_counts(
+        self,
+        renderer: CodeBookRenderer,
+        temp_dir: Path,
+    ):
+        """Should track backlink statistics in RenderResult."""
+        source = temp_dir / "source.md"
+        target1 = temp_dir / "target1.md"
+        target2 = temp_dir / "target2.md"
+
+        source.write_text("[Link1](target1.md)\n[Link2](target2.md)")
+        target1.write_text("# Target 1")
+        target2.write_text("# Target 2")
+
+        result = renderer.render_file(source)
+
+        assert result.backlinks_found == 2
+        assert result.backlinks_updated == 2
+
+    def test_ignores_backlink_markers_in_code_blocks(
+        self,
+        renderer: CodeBookRenderer,
+        temp_dir: Path,
+    ):
+        """Should ignore BACKLINKS markers inside fenced code blocks."""
+        source = temp_dir / "source.md"
+        target = temp_dir / "target.md"
+
+        source.write_text("[Link](target.md)")
+        # Target has an example BACKLINKS section in a code block
+        target.write_text(
+            """# Target Document
+
+Here's an example of backlinks:
+
+```markdown
+--- BACKLINKS ---
+[Example](example.md "codebook:backlink")
+```
+
+Real content below.
+"""
+        )
+
+        renderer.render_file(source)
+
+        target_content = target.read_text()
+        # Should add real BACKLINKS section at the end (after the content)
+        assert "Real content below." in target_content
+        assert target_content.index("Real content below.") < target_content.rfind("--- BACKLINKS ---")
+        # Example in code block should be preserved
+        assert '```markdown\n--- BACKLINKS ---\n[Example]' in target_content
+        # Real backlink should point to source
+        assert 'source.md "codebook:backlink")' in target_content
+
+    def test_ignores_backlink_markers_in_inline_code(
+        self,
+        renderer: CodeBookRenderer,
+        temp_dir: Path,
+    ):
+        """Should ignore BACKLINKS markers inside inline code."""
+        source = temp_dir / "source.md"
+        target = temp_dir / "target.md"
+
+        source.write_text("[Link](target.md)")
+        # Target mentions the marker in inline code
+        target.write_text(
+            "Use `--- BACKLINKS ---` to start the backlinks section.\n"
+        )
+
+        renderer.render_file(source)
+
+        target_content = target.read_text()
+        # Should add real BACKLINKS section at the end
+        assert '\n--- BACKLINKS ---\n' in target_content
+        assert 'source.md "codebook:backlink")' in target_content
+        # Inline code should be preserved
+        assert "Use `--- BACKLINKS ---` to start" in target_content

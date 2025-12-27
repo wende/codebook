@@ -25,18 +25,19 @@ codebook run
 - **[Code Execution](CODE_EXECUTION.md)** - Run Python code blocks
 - **[Cicada Integration](CICADA_INTEGRATION.md)** - Live code exploration
 - **[Configuration](CONFIGURATION.md)** - YAML config reference
+- **[Tasks](TASKS.md)** - Task management
 
 ## Project Stats
 
 | Metric    | Value                               |
 | --------- | ----------------------------------- |
 | Templates | [`42`](codebook:project.file_count) |
-| Version   | [`ee158b4`](codebook:codebook.version)  |
+| Version   | [`6742eaf`](codebook:codebook.version)  |
 
 ## Documentation Files
 
 [Docs](./codebook)
 
 ---
-
-Rendered by CodeBook [`ee158b4`](codebook:codebook.version)
+ 
+Rendered by CodeBook [`6742eaf`](codebook:codebook.version)

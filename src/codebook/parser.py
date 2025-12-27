@@ -23,6 +23,8 @@ class LinkType(Enum):
 
     INLINE = "inline"  # [`VALUE`](codebook:TEMPLATE)
     URL = "url"  # [text](URL "codebook:TEMPLATE")
+    MARKDOWN_LINK = "markdown_link"  # [text](file.md) - standard markdown link
+    BACKLINK = "backlink"  # [text](URL "codebook:backlink") - auto-generated backlink
     SPAN = "span"  # <span data-codebook="TEMPLATE">VALUE</span>
     DIV = "div"  # <div data-codebook="TEMPLATE">CONTENT</div>
     EXEC = "exec"  # <exec lang="python">CODE</exec><output>RESULT</output>
@@ -67,6 +69,12 @@ class CodeBookLink:
         elif self.link_type == LinkType.URL:
             # extra contains the link text
             return f'[{self.extra}]({new_value} "codebook:{self.template}")'
+        elif self.link_type == LinkType.MARKDOWN_LINK:
+            # extra contains the link text, value is the URL
+            return f"[{self.extra}]({new_value})"
+        elif self.link_type == LinkType.BACKLINK:
+            # extra contains the link text, value is the URL
+            return f'[{self.extra}]({new_value} "codebook:backlink")'
         elif self.link_type == LinkType.SPAN:
             return f'<span data-codebook="{self.template}">{new_value}</span>'
         elif self.link_type == LinkType.DIV:
@@ -96,8 +104,15 @@ class CodeBookParser:
     # Pattern 1: [`VALUE`](codebook:TEMPLATE) or [VALUE](codebook:TEMPLATE)
     INLINE_PATTERN = re.compile(r"\[`?([^`\]]*)`?\]\(codebook:([^)]+)\)")
 
-    # Pattern 2: [text](URL "codebook:TEMPLATE")
-    URL_PATTERN = re.compile(r'\[([^\]]+)\]\(([^"\s]+)\s+"codebook:([^"]+)"\)')
+    # Pattern 2: [text](URL "codebook:TEMPLATE") - excludes link/backlink
+    URL_PATTERN = re.compile(r'\[([^\]]+)\]\(([^"\s]+)\s+"codebook:(?!link\b|backlink\b)([^"]+)"\)')
+
+    # Pattern 2a: [text](file.md) - standard markdown link to .md files
+    # Matches links to .md files without any title attribute
+    MARKDOWN_LINK_PATTERN = re.compile(r'\[([^\]]+)\]\(([^"\s)]+\.md)\)')
+
+    # Pattern 2b: [text](URL "codebook:backlink") - backlink (auto-generated)
+    BACKLINK_PATTERN = re.compile(r'\[([^\]]+)\]\(([^"\s]+)\s+"codebook:backlink"\)')
 
     # Pattern 3: <span data-codebook="TEMPLATE">VALUE</span>
     SPAN_PATTERN = re.compile(r'<span data-codebook="([^"]+)">([^<]*)</span>')
@@ -151,6 +166,30 @@ class CodeBookParser:
                 start=match.start(),
                 end=match.end(),
                 link_type=LinkType.URL,
+                extra=match.group(1),  # link text
+            )
+
+        # Find standard markdown links to .md files: [text](file.md)
+        for match in self.MARKDOWN_LINK_PATTERN.finditer(content):
+            yield CodeBookLink(
+                full_match=match.group(0),
+                value=match.group(2),  # URL/path is the value
+                template="",  # no template for standard links
+                start=match.start(),
+                end=match.end(),
+                link_type=LinkType.MARKDOWN_LINK,
+                extra=match.group(1),  # link text
+            )
+
+        # Find backlinks: [text](URL "codebook:backlink")
+        for match in self.BACKLINK_PATTERN.finditer(content):
+            yield CodeBookLink(
+                full_match=match.group(0),
+                value=match.group(2),  # URL is the value
+                template="backlink",  # special template marker
+                start=match.start(),
+                end=match.end(),
+                link_type=LinkType.BACKLINK,
                 extra=match.group(1),  # link text
             )
 
@@ -291,6 +330,8 @@ class CodeBookParser:
         return (
             self.INLINE_PATTERN.search(content) is not None
             or self.URL_PATTERN.search(content) is not None
+            or self.MARKDOWN_LINK_PATTERN.search(content) is not None
+            or self.BACKLINK_PATTERN.search(content) is not None
             or self.SPAN_PATTERN.search(content) is not None
             or self.DIV_PATTERN.search(content) is not None
             or self.EXEC_PATTERN.search(content) is not None

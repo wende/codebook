@@ -60,10 +60,10 @@ Use <codebook:TEMPLATES> to list all available templates.
 Returns the current CodeBook version (git tag/SHA):
 
 ```markdown
-[`ee158b4`](codebook:codebook.version)
+[`6742eaf`](codebook:codebook.version)
 ```
 
-**Current version:** [`ee158b4`](codebook:codebook.version)
+**Current version:** [`6742eaf`](codebook:codebook.version)
 
 ## Template Resolution
 
@@ -76,4 +76,7 @@ Results are cached based on the `cache_ttl` setting.
 
 ---
 
-Rendered by CodeBook [`ee158b4`](codebook:codebook.version)
+Rendered by CodeBook [`6742eaf`](codebook:codebook.version)
+
+--- BACKLINKS ---
+[Link Syntax](README.md "codebook:backlink")

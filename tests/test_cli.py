@@ -313,3 +313,361 @@ class TestCLI:
 
         assert result.exit_code == 0
         assert "0.1.0" in result.output
+
+
+class TestTaskCommands:
+    """Tests for task subcommands."""
+
+    @pytest.fixture
+    def runner(self) -> CliRunner:
+        """Create a CLI test runner."""
+        return CliRunner()
+
+    @pytest.fixture
+    def git_repo(self, runner: CliRunner):
+        """Create a temporary git repository with the CLI runner."""
+        with runner.isolated_filesystem() as tmpdir:
+            tmpdir_path = Path(tmpdir)
+            # Initialize git repo
+            subprocess.run(["git", "init"], cwd=tmpdir, capture_output=True, check=True)
+            subprocess.run(
+                ["git", "config", "user.email", "test@test.com"],
+                cwd=tmpdir,
+                capture_output=True,
+                check=True,
+            )
+            subprocess.run(
+                ["git", "config", "user.name", "Test"],
+                cwd=tmpdir,
+                capture_output=True,
+                check=True,
+            )
+            yield tmpdir_path
+
+    def test_task_help(self, runner: CliRunner):
+        """Should show task group help."""
+        result = runner.invoke(main, ["task", "--help"])
+
+        assert result.exit_code == 0
+        assert "Manage CodeBook tasks" in result.output
+        assert "new" in result.output
+        assert "list" in result.output
+        assert "delete" in result.output
+
+    def test_task_new_help(self, runner: CliRunner):
+        """Should show task new help."""
+        result = runner.invoke(main, ["task", "new", "--help"])
+
+        assert result.exit_code == 0
+        assert "Create a new task" in result.output
+        assert "--all" in result.output
+
+    def test_task_new_with_modified_file(self, git_repo: Path):
+        """Should create task with modified file diff."""
+        runner = CliRunner()
+
+        # Create and commit a file
+        md_file = git_repo / "test.md"
+        md_file.write_text("Original content")
+        subprocess.run(["git", "add", "test.md"], cwd=git_repo, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "Initial"], cwd=git_repo, capture_output=True)
+
+        # Modify the file
+        md_file.write_text("Modified content")
+
+        # Create task
+        result = runner.invoke(
+            main,
+            ["task", "new", "Test Task", str(md_file)],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0
+        assert "Created task:" in result.output
+        assert "1 file(s)" in result.output
+
+        # Verify task file was created
+        tasks_dir = git_repo / ".codebook" / "tasks"
+        task_files = list(tasks_dir.glob("*.md"))
+        assert len(task_files) == 1
+        assert "TEST_TASK" in task_files[0].name
+
+        # Verify task content contains diff
+        content = task_files[0].read_text()
+        assert "```diff" in content
+        assert "-Original content" in content
+        assert "+Modified content" in content
+
+    def test_task_new_with_untracked_file(self, git_repo: Path):
+        """Should create task with untracked (new) file."""
+        runner = CliRunner()
+
+        # Create a new file (not tracked by git)
+        md_file = git_repo / "new_file.md"
+        md_file.write_text("Brand new content\nWith multiple lines")
+
+        # Create task
+        result = runner.invoke(
+            main,
+            ["task", "new", "New File Task", str(md_file)],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0
+        assert "Created task:" in result.output
+        assert "1 file(s)" in result.output
+
+        # Verify task file was created
+        tasks_dir = git_repo / ".codebook" / "tasks"
+        task_files = list(tasks_dir.glob("*.md"))
+        assert len(task_files) == 1
+
+        # Verify task content shows new file as added
+        content = task_files[0].read_text()
+        assert "```diff" in content
+        assert "new file mode" in content
+        assert "+Brand new content" in content
+        assert "+With multiple lines" in content
+
+    def test_task_new_with_directory_scope(self, git_repo: Path):
+        """Should create task with all modified/untracked files in directory."""
+        runner = CliRunner()
+
+        # Create docs directory
+        docs_dir = git_repo / "docs"
+        docs_dir.mkdir()
+
+        # Create and commit a file
+        doc1 = docs_dir / "doc1.md"
+        doc1.write_text("Original doc1")
+        subprocess.run(["git", "add", "."], cwd=git_repo, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "Initial"], cwd=git_repo, capture_output=True)
+
+        # Modify doc1 and add new doc2
+        doc1.write_text("Modified doc1")
+        doc2 = docs_dir / "doc2.md"
+        doc2.write_text("New doc2")
+
+        # Create task
+        result = runner.invoke(
+            main,
+            ["task", "new", "Docs Update", str(docs_dir)],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0
+        assert "2 file(s)" in result.output
+
+        # Verify content includes both files
+        tasks_dir = git_repo / ".codebook" / "tasks"
+        task_files = list(tasks_dir.glob("*.md"))
+        content = task_files[0].read_text()
+        assert "Modified doc1" in content
+        assert "New doc2" in content
+
+    def test_task_new_no_modified_files(self, git_repo: Path):
+        """Should error when no modified files found."""
+        runner = CliRunner()
+
+        # Create and commit a file (no modifications after commit)
+        md_file = git_repo / "test.md"
+        md_file.write_text("Committed content")
+        subprocess.run(["git", "add", "test.md"], cwd=git_repo, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "Initial"], cwd=git_repo, capture_output=True)
+
+        # Create task (no changes)
+        result = runner.invoke(
+            main,
+            ["task", "new", "Empty Task", str(md_file)],
+        )
+
+        assert result.exit_code == 0  # Click returns 0, message to stderr
+        assert "No modified markdown files found" in result.output
+
+    def test_task_new_with_all_flag(self, git_repo: Path):
+        """Should include all files when --all is specified."""
+        runner = CliRunner()
+
+        # Create and commit a file (no modifications)
+        md_file = git_repo / "test.md"
+        md_file.write_text("Committed content")
+        subprocess.run(["git", "add", "test.md"], cwd=git_repo, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "Initial"], cwd=git_repo, capture_output=True)
+
+        # Create task with --all (still no diff available for committed unchanged file)
+        result = runner.invoke(
+            main,
+            ["task", "new", "All Files Task", str(md_file), "--all"],
+        )
+
+        # File exists but has no diff, so still reports no modified files
+        assert "No modified markdown files found" in result.output
+
+    def test_task_new_title_conversion(self, git_repo: Path):
+        """Should convert title to UPPER_SNAKE_CASE."""
+        runner = CliRunner()
+
+        # Create untracked file
+        md_file = git_repo / "test.md"
+        md_file.write_text("Content")
+
+        result = runner.invoke(
+            main,
+            ["task", "new", "My Special Task!", str(md_file)],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0
+        tasks_dir = git_repo / ".codebook" / "tasks"
+        task_files = list(tasks_dir.glob("*.md"))
+        assert len(task_files) == 1
+        assert "MY_SPECIAL_TASK" in task_files[0].name
+
+    def test_task_list_empty(self, runner: CliRunner):
+        """Should show message when no tasks exist."""
+        with runner.isolated_filesystem():
+            result = runner.invoke(main, ["task", "list"])
+
+            assert result.exit_code == 0
+            assert "No tasks" in result.output
+
+    def test_task_list_shows_tasks(self, git_repo: Path):
+        """Should list existing tasks with formatted dates."""
+        runner = CliRunner()
+
+        # Create tasks directory with task files
+        tasks_dir = git_repo / ".codebook" / "tasks"
+        tasks_dir.mkdir(parents=True)
+
+        # Create task files with different formats
+        (tasks_dir / "202412281530-FIRST_TASK.md").write_text("Task 1")
+        (tasks_dir / "202412281545-SECOND_TASK.md").write_text("Task 2")
+
+        result = runner.invoke(main, ["task", "list"])
+
+        assert result.exit_code == 0
+        assert "Tasks:" in result.output
+        assert "2024-12-28 15:30" in result.output
+        assert "FIRST_TASK" in result.output
+        assert "2024-12-28 15:45" in result.output
+        assert "SECOND_TASK" in result.output
+
+    def test_task_list_handles_old_format(self, git_repo: Path):
+        """Should handle old date format (YYYYMMDD-)."""
+        runner = CliRunner()
+
+        tasks_dir = git_repo / ".codebook" / "tasks"
+        tasks_dir.mkdir(parents=True)
+        (tasks_dir / "20241228-OLD_FORMAT_TASK.md").write_text("Old task")
+
+        result = runner.invoke(main, ["task", "list"])
+
+        assert result.exit_code == 0
+        assert "2024-12-28" in result.output
+        assert "OLD_FORMAT_TASK" in result.output
+
+    def test_task_delete_by_title(self, git_repo: Path):
+        """Should delete task by title with --force."""
+        runner = CliRunner()
+
+        tasks_dir = git_repo / ".codebook" / "tasks"
+        tasks_dir.mkdir(parents=True)
+        task_file = tasks_dir / "202412281530-MY_TASK.md"
+        task_file.write_text("Task content")
+
+        result = runner.invoke(
+            main,
+            ["task", "delete", "My Task", "--force"],
+        )
+
+        assert result.exit_code == 0
+        assert "Deleted:" in result.output
+        assert not task_file.exists()
+
+    def test_task_delete_not_found(self, git_repo: Path):
+        """Should error when task not found."""
+        runner = CliRunner()
+
+        tasks_dir = git_repo / ".codebook" / "tasks"
+        tasks_dir.mkdir(parents=True)
+        (tasks_dir / "202412281530-EXISTING_TASK.md").write_text("Task")
+
+        result = runner.invoke(
+            main,
+            ["task", "delete", "Nonexistent Task", "--force"],
+        )
+
+        assert "Task not found" in result.output
+        assert "Available tasks:" in result.output
+
+    def test_task_delete_no_tasks_dir(self, runner: CliRunner):
+        """Should error when no tasks directory exists."""
+        with runner.isolated_filesystem():
+            result = runner.invoke(
+                main,
+                ["task", "delete", "Any Task", "--force"],
+            )
+
+            assert "No tasks directory found" in result.output
+
+    def test_task_delete_interactive_confirm(self, git_repo: Path):
+        """Should prompt for confirmation without --force."""
+        runner = CliRunner()
+
+        tasks_dir = git_repo / ".codebook" / "tasks"
+        tasks_dir.mkdir(parents=True)
+        task_file = tasks_dir / "202412281530-MY_TASK.md"
+        task_file.write_text("Task content")
+
+        # Confirm deletion
+        result = runner.invoke(
+            main,
+            ["task", "delete", "My Task"],
+            input="y\n",
+        )
+
+        assert result.exit_code == 0
+        assert "Deleted:" in result.output
+        assert not task_file.exists()
+
+    def test_task_delete_interactive_cancel(self, git_repo: Path):
+        """Should cancel deletion when user declines."""
+        runner = CliRunner()
+
+        tasks_dir = git_repo / ".codebook" / "tasks"
+        tasks_dir.mkdir(parents=True)
+        task_file = tasks_dir / "202412281530-MY_TASK.md"
+        task_file.write_text("Task content")
+
+        # Decline deletion
+        result = runner.invoke(
+            main,
+            ["task", "delete", "My Task"],
+            input="n\n",
+        )
+
+        assert "Cancelled" in result.output
+        assert task_file.exists()
+
+    def test_task_delete_interactive_picker(self, git_repo: Path):
+        """Should show interactive picker when no title provided."""
+        runner = CliRunner()
+
+        tasks_dir = git_repo / ".codebook" / "tasks"
+        tasks_dir.mkdir(parents=True)
+        task1 = tasks_dir / "202412281530-FIRST_TASK.md"
+        task2 = tasks_dir / "202412281545-SECOND_TASK.md"
+        task1.write_text("Task 1")
+        task2.write_text("Task 2")
+
+        # Select task 2 and confirm
+        result = runner.invoke(
+            main,
+            ["task", "delete"],
+            input="2\ny\n",
+        )
+
+        assert result.exit_code == 0
+        assert "Select a task to delete:" in result.output
+        assert task1.exists()
+        assert not task2.exists()

@@ -19,19 +19,299 @@ Search for functions by name:
 <cicada endpoint="search-function" function_name="render" format="markdown">
 Functions matching render
 
-Found 2 match(es):
+Found 42 match(es) (showing private functions, showing partial name matches):
 
 ---
 
-_file_cli.render()
-cli.py:132
+_file_conftest.renderer()
+conftest.py:34
 *No call sites found*
 
 
 ---
 
-CodeBookLink.render()
-parser.py:56
+TestCLI.test_render_help()
+test_cli.py:37
+*No call sites found*
+
+
+---
+
+TestCLI.test_render_requires_directory()
+test_cli.py:58
+*No call sites found*
+
+
+---
+
+TestCLI.test_render_with_directory()
+test_cli.py:64
+*No call sites found*
+
+
+---
+
+TestCLI.test_render_dry_run()
+test_cli.py:82
+*No call sites found*
+
+
+---
+
+TestCLI.test_render_reports_statistics()
+test_cli.py:99
+*No call sites found*
+
+
+---
+
+TestCLI.test_render_non_recursive()
+test_cli.py:117
+*No call sites found*
+
+
+---
+
+TestCodeBookDiffer.mock_renderer()
+test_differ.py:51
+*No call sites found*
+
+
+---
+
+TestCodeBookDiffer.test_show_rendered_returns_rendered_content()
+test_differ.py:200
+*No call sites found*
+
+
+---
+
+TestCodeBookDiffer.test_show_rendered_returns_none_on_error()
+test_differ.py:219
+*No call sites found*
+
+
+---
+
+TestCodeBookDiffer.render_side_effect()
+test_differ.py:278
+*No call sites found*
+
+
+---
+
+TestCodeBookLink.test_render_generates_correct_link()
+test_parser.py:11
+*No call sites found*
+
+
+---
+
+TestCodeBookLink.test_render_handles_empty_value()
+test_parser.py:25
+*No call sites found*
+
+
+---
+
+TestCodeBookLink.test_render_handles_special_characters()
+test_parser.py:39
+*No call sites found*
+
+
+---
+
+TestBacklinks.test_render_markdown_link()
+test_parser.py:508
+*No call sites found*
+
+
+---
+
+TestBacklinks.test_render_backlink()
+test_parser.py:526
+*No call sites found*
+
+
+---
+
+TestCodeBookRenderer.renderer()
+test_renderer.py:39
+*No call sites found*
+
+
+---
+
+TestCodeBookRenderer.test_render_file_finds_templates()
+test_renderer.py:43
+*No call sites found*
+
+
+---
+
+TestCodeBookRenderer.test_render_file_updates_values()
+test_renderer.py:59
+*No call sites found*
+
+
+---
+
+TestCodeBookRenderer.test_render_file_dry_run_does_not_modify()
+test_renderer.py:76
+*No call sites found*
+
+
+---
+
+TestCodeBookRenderer.test_render_file_handles_no_links()
+test_renderer.py:92
+*No call sites found*
+
+
+---
+
+TestCodeBookRenderer.test_render_file_handles_read_error()
+test_renderer.py:108
+*No call sites found*
+
+
+---
+
+TestCodeBookRenderer.test_render_file_handles_write_error()
+test_renderer.py:121
+*No call sites found*
+
+
+---
+
+TestCodeBookRenderer.test_render_file_handles_unresolved_templates()
+test_renderer.py:143
+*No call sites found*
+
+
+---
+
+TestCodeBookRenderer.test_render_file_partial_resolution()
+test_renderer.py:161
+*No call sites found*
+
+
+---
+
+TestCodeBookRenderer.test_render_directory_processes_all_md_files()
+test_renderer.py:179
+*No call sites found*
+
+
+---
+
+TestCodeBookRenderer.test_render_directory_recursive()
+test_renderer.py:195
+*No call sites found*
+
+
+---
+
+TestCodeBookRenderer.test_render_directory_non_recursive()
+test_renderer.py:212
+*No call sites found*
+
+
+---
+
+TestCodeBookRenderer.test_render_directory_handles_invalid_path()
+test_renderer.py:229
+*No call sites found*
+
+
+---
+
+TestCodeBookRenderer.test_render_content_returns_rendered_content()
+test_renderer.py:244
+*No call sites found*
+
+
+---
+
+TestCodeBookRenderer.test_render_content_handles_no_links()
+test_renderer.py:258
+*No call sites found*
+
+
+---
+
+TestCodeBookRenderer.test_render_content_handles_no_resolved_values()
+test_renderer.py:272
+*No call sites found*
+
+
+---
+
+TestCodeBookRenderer.test_render_preserves_surrounding_content()
+test_renderer.py:286
+*No call sites found*
+
+
+---
+
+TestBacklinkUpdates.renderer()
+test_renderer.py:324
+*No call sites found*
+
+
+---
+
+TestBacklinkUpdates.test_render_finds_markdown_links()
+test_renderer.py:328
+*No call sites found*
+
+
+---
+
+TestBacklinkUpdates.test_render_creates_backlink_in_target()
+test_renderer.py:341
+*No call sites found*
+
+
+---
+
+TestBacklinkUpdates.test_render_appends_to_existing_backlinks()
+test_renderer.py:359
+*No call sites found*
+
+
+---
+
+TestBacklinkUpdates.test_render_does_not_duplicate_backlinks()
+test_renderer.py:379
+*No call sites found*
+
+
+---
+
+TestBacklinkUpdates.test_render_result_tracks_backlink_counts()
+test_renderer.py:452
+*No call sites found*
+
+
+---
+
+TestCodeBookWatcher.mock_renderer()
+test_watcher.py:122
+*No call sites found*
+
+
+---
+
+TestCodeBookWatcher.test_file_change_triggers_render()
+test_watcher.py:190
+*No call sites found*
+
+
+---
+
+TestCodeBookWatcher.test_on_render_callback_called()
+test_watcher.py:213
 *No call sites found*
 
 </cicada>
@@ -47,8 +327,10 @@ Search for modules:
 
 ```html
 <cicada endpoint="search-module" module_name="CodeBookParser" jq=".module,.location">
-CodeBookParser  
-parser.py:86
+[
+  null,
+  null
+]
 </cicada>
 ```
 
@@ -101,22 +383,9 @@ Returns structured JSON data:
 
 ```json
 {
+  "error": "Function not found",
   "query": "get_codebook_version",
-  "total_matches": 1,
-  "results": [
-    {
-      "module": "_file_renderer",
-      "moduledoc": null,
-      "function": "get_codebook_version",
-      "arity": 0,
-      "full_name": "_file_renderer.get_codebook_version/0",
-      "signature": "def get_codebook_version() -> str:",
-      "location": "renderer.py:22",
-      "type": "public",
-      "doc": "Get the current codebook version from git.\n\n    Returns:\n        Version string in format 'tag (short_sha)' or just 'sha' if no tag.",
-      "call_sites": []
-    }
-  ]
+  "hint": "Verify the function name spelling or try without arity"
 }
 ```
 </cicada>
@@ -126,12 +395,7 @@ Returns structured JSON data:
 Returns formatted markdown:
 
 <cicada endpoint="search-function" function_name="get_codebook_version" format="markdown">
----
-renderer.py:22
-_file_renderer.get_codebook_version()
-*No call sites found*
-
----
+Not found: `get_codebook_version`. Try: `*get_codebook_version*` | query(['get', 'codebook', 'version'])
 </cicada>
 
 ## JSON Path Extraction
@@ -142,7 +406,7 @@ Use the `jq` attribute to extract specific values from JSON responses:
 
 ```html
 <cicada endpoint="search-function" function_name="render" jq=".total_matches">
-2
+42
 </cicada>
 ```
 
@@ -150,7 +414,7 @@ Use the `jq` attribute to extract specific values from JSON responses:
 
 ```html
 <cicada endpoint="search-function" function_name="render" jq=".results[0].module">
-_file_cli
+_file_conftest
 </cicada>
 ```
 
@@ -202,13 +466,17 @@ codebook run  # Starts cicada if start: true
 Functions in the renderer module:
 
 <cicada endpoint="search-function" function_name="render_file" jq=".results[0].signature">
-def render_file(
+def test_render_file_finds_templates(
   self,
-  path: Path,
-  dry_run: bool = False
-) -> RenderResult:
+  renderer: CodeBookRenderer,
+  mock_client: MagicMock,
+  temp_dir: Path
+): # -> None:
 </cicada>
 
 ---
 
-Rendered by CodeBook [`ee158b4`](codebook:codebook.version)
+Rendered by CodeBook [`6742eaf`](codebook:codebook.version)
+
+--- BACKLINKS ---
+[Cicada Integration](README.md "codebook:backlink")

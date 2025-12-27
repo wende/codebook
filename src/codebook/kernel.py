@@ -38,15 +38,19 @@ class CodeBookKernel:
     kernel lifecycle management.
     """
 
-    def __init__(self, kernel_name: str = "python3", timeout: float = 30.0):
+    def __init__(
+        self, kernel_name: str = "python3", timeout: float = 30.0, cwd: str | None = None
+    ):
         """Initialize the kernel manager.
 
         Args:
             kernel_name: The Jupyter kernel to use (default: python3)
             timeout: Timeout in seconds for code execution
+            cwd: Working directory to add to sys.path (enables importing project modules)
         """
         self.kernel_name = kernel_name
         self.timeout = timeout
+        self.cwd = cwd
         self._km: KernelManager | None = None
         self._kc: Any = None
         self._started = False
@@ -62,6 +66,17 @@ class CodeBookKernel:
         self._kc.start_channels()
         self._kc.wait_for_ready(timeout=self.timeout)
         self._started = True
+
+        # Add project directory to sys.path so users can import their modules
+        if self.cwd:
+            setup_code = f"import sys; sys.path.insert(0, {self.cwd!r})"
+            self._kc.execute(setup_code)
+            # Wait for the setup to complete
+            while True:
+                msg = self._kc.get_iopub_msg(timeout=self.timeout)
+                if msg["header"]["msg_type"] == "status":
+                    if msg["content"].get("execution_state") == "idle":
+                        break
 
         # Register cleanup on exit
         atexit.register(self.stop)

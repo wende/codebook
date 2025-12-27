@@ -160,7 +160,7 @@ def render(
     kernel = None
     if execute_code:
         click.echo("Starting Jupyter kernel...")
-        kernel = CodeBookKernel()
+        kernel = CodeBookKernel(cwd=str(directory.resolve()))
         kernel.start()
 
     # Create Cicada client if enabled
@@ -276,7 +276,7 @@ def watch(
     kernel = None
     if execute_code:
         click.echo("Starting Jupyter kernel...")
-        kernel = CodeBookKernel()
+        kernel = CodeBookKernel(cwd=str(directory.resolve()))
         kernel.start()
 
     # Create Cicada client if enabled
@@ -528,9 +528,10 @@ def run(ctx: click.Context, config: Path | None) -> None:
 
         # Create kernel if exec enabled
         kernel = None
+        directory = Path(cfg.watch_dir)
         if cfg.exec:
             click.echo("Starting Jupyter kernel...")
-            kernel = CodeBookKernel()
+            kernel = CodeBookKernel(cwd=str(directory.resolve()))
             kernel.start()
 
         # Create Cicada client if enabled
@@ -541,7 +542,6 @@ def run(ctx: click.Context, config: Path | None) -> None:
 
         try:
             renderer = CodeBookRenderer(client, kernel=kernel, cicada=cicada)
-            directory = Path(cfg.watch_dir)
 
             # Check backend health
             click.echo(f"Checking backend at {client.base_url}...")
@@ -677,8 +677,12 @@ def task_new(ctx: click.Context, title: str, scope: Path, include_all: bool) -> 
     task_file = tasks_dir / f"{date_prefix}-{task_name}.md"
 
     # Get modified files from git
-    def get_modified_files(scope_path: Path) -> set[Path]:
-        """Get list of modified files (staged + unstaged) in scope."""
+    def get_modified_files(scope_path: Path) -> tuple[set[Path], set[Path]]:
+        """Get list of modified and untracked files in scope.
+
+        Returns:
+            Tuple of (modified_files, untracked_files) as sets of resolved paths.
+        """
         try:
             result = subprocess.run(
                 ["git", "status", "--porcelain", str(scope_path)],
@@ -686,33 +690,55 @@ def task_new(ctx: click.Context, title: str, scope: Path, include_all: bool) -> 
                 text=True,
             )
             if result.returncode != 0:
-                return set()
+                return set(), set()
             modified = set()
+            untracked = set()
             for line in result.stdout.split("\n"):
                 if line and len(line) >= 3:
+                    status = line[:2]
                     # Format: "XY filename" where XY is 2-char status + space
                     file_path = line[3:]
                     # Handle renamed files: "R  old -> new"
                     if " -> " in file_path:
                         file_path = file_path.split(" -> ")[1]
-                    # Resolve to absolute path for comparison
-                    modified.add(Path(file_path).resolve())
-            return modified
+                    resolved = Path(file_path).resolve()
+                    if status == "??":
+                        untracked.add(resolved)
+                    else:
+                        modified.add(resolved)
+            return modified, untracked
         except Exception:
-            return set()
+            return set(), set()
 
     # Get raw git diff for a file
-    def get_git_diff(file_path: Path) -> str | None:
-        """Get raw git diff for a file."""
+    def get_git_diff(file_path: Path, is_untracked: bool = False) -> str | None:
+        """Get raw git diff for a file.
+
+        Args:
+            file_path: Path to the file
+            is_untracked: If True, use --no-index to show new file as diff
+        """
         try:
-            result = subprocess.run(
-                ["git", "diff", str(file_path)],
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode == 0 and result.stdout.strip():
-                return result.stdout
-            return None
+            if is_untracked:
+                # For untracked files, compare against /dev/null
+                result = subprocess.run(
+                    ["git", "diff", "--no-index", "/dev/null", str(file_path)],
+                    capture_output=True,
+                    text=True,
+                )
+                # --no-index returns 1 when files differ, which is expected
+                if result.stdout.strip():
+                    return result.stdout
+                return None
+            else:
+                result = subprocess.run(
+                    ["git", "diff", str(file_path)],
+                    capture_output=True,
+                    text=True,
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    return result.stdout
+                return None
         except Exception:
             return None
 
@@ -749,12 +775,14 @@ def task_new(ctx: click.Context, title: str, scope: Path, include_all: bool) -> 
     else:
         candidates = sorted(scope.glob("**/*.md"))
 
-    # Filter to only modified files unless --all
+    # Filter to only modified/untracked files unless --all
     if include_all:
         files = candidates
+        untracked_files: set[Path] = set()
     else:
-        modified = get_modified_files(scope)
-        files = [f for f in candidates if f.resolve() in modified]
+        modified, untracked_files = get_modified_files(scope)
+        all_changed = modified | untracked_files
+        files = [f for f in candidates if f.resolve() in all_changed]
 
     if not files:
         click.echo(f"No modified markdown files found in {scope}", err=True)
@@ -773,8 +801,9 @@ def task_new(ctx: click.Context, title: str, scope: Path, include_all: bool) -> 
         if not file_path.is_file():
             continue
 
-        # Get raw git diff
-        diff_output = get_git_diff(file_path)
+        # Get raw git diff (use --no-index for untracked files)
+        is_untracked = file_path.resolve() in untracked_files
+        diff_output = get_git_diff(file_path, is_untracked=is_untracked)
 
         if not diff_output:
             continue

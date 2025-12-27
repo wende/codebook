@@ -76,6 +76,8 @@ class RenderResult:
         code_blocks_executed: Number of code blocks successfully executed
         cicada_queries_found: Number of Cicada query blocks found
         cicada_queries_executed: Number of Cicada queries executed
+        backlinks_found: Number of bidirectional links found
+        backlinks_updated: Number of target files updated with backlinks
         changed: Whether the file content was modified
         error: Error message if rendering failed, None otherwise
     """
@@ -87,6 +89,8 @@ class RenderResult:
     code_blocks_executed: int = 0
     cicada_queries_found: int = 0
     cicada_queries_executed: int = 0
+    backlinks_found: int = 0
+    backlinks_updated: int = 0
     changed: bool = False
     error: str | None = None
 
@@ -154,16 +158,22 @@ class CodeBookRenderer:
         # Separate different link types
         exec_blocks = [link for link in all_links if link.link_type == LinkType.EXEC]
         cicada_blocks = [link for link in all_links if link.link_type == LinkType.CICADA]
+        markdown_links = [
+            link for link in all_links if link.link_type == LinkType.MARKDOWN_LINK
+        ]
         template_links = [
             link for link in all_links
-            if link.link_type not in (LinkType.EXEC, LinkType.CICADA)
+            if link.link_type not in (
+                LinkType.EXEC, LinkType.CICADA, LinkType.MARKDOWN_LINK, LinkType.BACKLINK
+            )
         ]
 
-        # Count templates (excluding exec and cicada blocks)
+        # Count templates (excluding exec, cicada, bidirectional, and backlink blocks)
         templates = list({link.template for link in template_links})
         result.templates_found = len(templates)
         result.code_blocks_found = len(exec_blocks)
         result.cicada_queries_found = len(cicada_blocks)
+        result.backlinks_found = len(markdown_links)
 
         new_content = content
 
@@ -198,6 +208,11 @@ class CodeBookRenderer:
         if cicada_blocks and self.cicada:
             new_content, executed = self._execute_cicada_queries(new_content, cicada_blocks)
             result.cicada_queries_executed = executed
+
+        # Update backlinks in target files for markdown links
+        if markdown_links and not dry_run:
+            updated = self._update_backlinks(path, markdown_links)
+            result.backlinks_updated = updated
 
         result.changed = new_content != content
 
@@ -359,6 +374,164 @@ class CodeBookRenderer:
                 content = content.replace(block.full_match, new_block)
 
         return content, executed
+
+    def _find_real_backlinks_section(self, content: str) -> int | None:
+        """Find the position of the real BACKLINKS section, ignoring examples.
+
+        The BACKLINKS section should be at the end of the file, after any
+        content sections. This avoids false positives from example backlinks
+        in code blocks or inline code.
+
+        Args:
+            content: Markdown content to search
+
+        Returns:
+            Position of the BACKLINKS marker, or None if not found
+        """
+        import re
+        backlinks_marker = "--- BACKLINKS ---"
+
+        # Find all fenced code block ranges (``` or ~~~)
+        code_block_ranges = []
+        for match in re.finditer(r'(```|~~~)[^\n]*\n.*?\1', content, flags=re.DOTALL):
+            code_block_ranges.append((match.start(), match.end()))
+
+        def is_in_code_block(pos: int) -> bool:
+            """Check if a position is inside a fenced code block."""
+            return any(start <= pos < end for start, end in code_block_ranges)
+
+        # Look for the marker on its own line
+        pattern = re.compile(r'^[ \t]*' + re.escape(backlinks_marker) + r'[ \t]*$', re.MULTILINE)
+
+        # Find the last match that is NOT inside a code block
+        for match in reversed(list(pattern.finditer(content))):
+            if not is_in_code_block(match.start()):
+                return match.start()
+
+        return None
+
+    def _update_backlinks(
+        self, source_path: Path, markdown_links: list
+    ) -> int:
+        """Update backlinks in target files for markdown links.
+
+        For each markdown link [text](file.md) pointing to a .md file, this method:
+        1. Resolves the target file path from the URL
+        2. Adds or updates a backlink in the target file's BACKLINKS section
+
+        Args:
+            source_path: Path to the source file containing markdown links
+            markdown_links: List of CodeBookLink objects for markdown links
+
+        Returns:
+            Number of target files successfully updated
+        """
+        updated = 0
+        backlinks_marker = "--- BACKLINKS ---"
+
+        for link in markdown_links:
+            target_url = link.value  # URL to the target file
+            link_text = link.extra  # Text to display in the backlink
+
+            # Resolve target path relative to source file's directory
+            if target_url.startswith("/"):
+                # Absolute path from project root - find git root
+                try:
+                    import subprocess
+                    result = subprocess.run(
+                        ["git", "rev-parse", "--show-toplevel"],
+                        capture_output=True,
+                        text=True,
+                        cwd=source_path.parent,
+                    )
+                    if result.returncode == 0:
+                        git_root = Path(result.stdout.strip())
+                        target_path = git_root / target_url.lstrip("/")
+                    else:
+                        target_path = source_path.parent / target_url.lstrip("/")
+                except Exception:
+                    target_path = source_path.parent / target_url.lstrip("/")
+            else:
+                # Relative path
+                target_path = (source_path.parent / target_url).resolve()
+
+            if not target_path.exists():
+                logger.warning(f"Target file not found for backlink: {target_path}")
+                continue
+
+            try:
+                target_content = target_path.read_text(encoding="utf-8")
+            except OSError as e:
+                logger.error(f"Failed to read target file {target_path}: {e}")
+                continue
+
+            # Calculate relative path from target back to source
+            try:
+                backlink_url = source_path.relative_to(target_path.parent)
+            except ValueError:
+                # Files are not in a parent/child relationship, use relative path
+                try:
+                    # Try to find common base
+                    backlink_url = Path(
+                        "../" * len(target_path.parent.parts)
+                    ) / source_path
+                    # Simplify the path
+                    import os
+                    backlink_url = Path(
+                        os.path.relpath(source_path, target_path.parent)
+                    )
+                except Exception:
+                    backlink_url = source_path
+
+            # Create the backlink entry
+            backlink_entry = f'[{link_text}]({backlink_url} "codebook:backlink")'
+
+            # Find the real BACKLINKS section (on its own line, not in examples)
+            marker_pos = self._find_real_backlinks_section(target_content)
+
+            if marker_pos is not None:
+                section_start = marker_pos + len(backlinks_marker)
+
+                # Get existing backlinks section
+                existing_section = target_content[section_start:]
+
+                # Check if a backlink from this source already exists
+                # Look for any backlink pointing to our source file
+                source_name = source_path.name
+                if f'({backlink_url} "codebook:backlink")' in existing_section:
+                    # Backlink already exists, skip
+                    continue
+                elif f'{source_name} "codebook:backlink")' in existing_section:
+                    # Backlink to same file exists (possibly different path), skip
+                    continue
+
+                # Add new backlink after the marker
+                new_content = (
+                    target_content[:section_start]
+                    + "\n"
+                    + backlink_entry
+                    + target_content[section_start:]
+                )
+            else:
+                # Add BACKLINKS section at the end of the file
+                new_content = (
+                    target_content.rstrip()
+                    + "\n\n"
+                    + backlinks_marker
+                    + "\n"
+                    + backlink_entry
+                    + "\n"
+                )
+
+            # Write updated content
+            try:
+                target_path.write_text(new_content, encoding="utf-8")
+                logger.info(f"Added backlink to {target_path} from {source_path}")
+                updated += 1
+            except OSError as e:
+                logger.error(f"Failed to write backlink to {target_path}: {e}")
+
+        return updated
 
     def render_directory(
         self,
