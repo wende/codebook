@@ -649,6 +649,9 @@ def task_new(ctx: click.Context, title: str, scope: Path, include_all: bool) -> 
     By default, only includes files with uncommitted changes.
     Use --all to include all files regardless of git status.
 
+    The task is prepended with a generic prompt describing what to be changed.
+    This wrapper can be customized by adding task-prefix and task-suffix to codebook.yml.
+
     Example:
         codebook task new "Feature Documentation" ./docs
         codebook task new "API Update" ./README.md
@@ -656,6 +659,9 @@ def task_new(ctx: click.Context, title: str, scope: Path, include_all: bool) -> 
     """
     import re
     from datetime import date
+
+    # Load config for task prefix/suffix
+    cfg = CodeBookConfig.load()
 
     # Convert title to UPPER_SNAKE_CASE
     task_name = re.sub(r"[^\w\s]", "", title)
@@ -729,7 +735,11 @@ def task_new(ctx: click.Context, title: str, scope: Path, include_all: bool) -> 
         return
 
     # Build task content
-    lines = [f"# {title}\n\n"]
+    lines = []
+    # Add prefix if configured
+    if cfg.task_prefix:
+        lines.append(cfg.task_prefix)
+    lines.append(f"# {title}\n\n")
     file_count = 0
 
     for file_path in files:
@@ -772,6 +782,12 @@ def task_new(ctx: click.Context, title: str, scope: Path, include_all: bool) -> 
         click.echo(f"No modified markdown files found in {scope}", err=True)
         click.echo("Use --all to include all files regardless of git status", err=True)
         return
+
+    # Add suffix if configured
+    if cfg.task_suffix:
+        lines.append(cfg.task_suffix)
+        if not cfg.task_suffix.endswith("\n"):
+            lines.append("\n")
 
     # Write task file
     task_file.write_text("".join(lines), encoding="utf-8")

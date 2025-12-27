@@ -158,7 +158,7 @@ ruff check src/ tests/
 
 
 <cicada>
-  **PRIMARY: Always use `mcp__cicada__query` for understanding Elixir code.**
+  **PRIMARY: Always use `mcp__cicada__query` for ALL code exploration and discovery.**
 
   Cicada beats builtin tools for code exploration:
   - **vs Grep**: Semantic search by purpose, not literal text. Finds "authentication logic" without knowing exact function names. Understands code relationships and string literals semantically.

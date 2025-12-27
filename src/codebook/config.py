@@ -29,6 +29,12 @@ class BackendConfig:
     start: bool = False  # Whether to start mock server
 
 
+DEFAULT_TASK_PREFIX = """\
+This file is a diff of a feature specification. I want you to change the code to match the new spec.
+
+"""
+
+
 @dataclass
 class CodeBookConfig:
     """CodeBook configuration."""
@@ -47,6 +53,10 @@ class CodeBookConfig:
     # Timeouts
     timeout: float = 10.0
     cache_ttl: float = 60.0
+
+    # Task customization
+    task_prefix: str = field(default_factory=lambda: DEFAULT_TASK_PREFIX)
+    task_suffix: str = ""
 
     @classmethod
     def load(cls, path: Path | None = None) -> "CodeBookConfig":
@@ -118,11 +128,13 @@ class CodeBookConfig:
             cicada=cicada,
             timeout=data.get("timeout", 10.0),
             cache_ttl=data.get("cache_ttl", 60.0),
+            task_prefix=data.get("task-prefix", DEFAULT_TASK_PREFIX),
+            task_suffix=data.get("task-suffix", ""),
         )
 
     def to_dict(self) -> dict[str, Any]:
         """Convert config to dictionary."""
-        return {
+        result = {
             "watch_dir": self.watch_dir,
             "exec": self.exec,
             "recursive": self.recursive,
@@ -140,3 +152,9 @@ class CodeBookConfig:
                 "start": self.cicada.start,
             },
         }
+        # Only include task customization if non-default
+        if self.task_prefix != DEFAULT_TASK_PREFIX:
+            result["task-prefix"] = self.task_prefix
+        if self.task_suffix:
+            result["task-suffix"] = self.task_suffix
+        return result

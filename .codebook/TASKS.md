@@ -14,17 +14,14 @@ This creates `.codebook/tasks/YYYYMMDD-TITLE_OF_THE_TASK.md` containing:
 
 Users can delete the tasks by running `codebook task delete` with the "Title of the task" or without it the pick tool will be used to select the task to delete from the list of tasks.
 
-## Options
-
-| Option | Description |
-|--------|-------------|
-| `--all` | Include all files, not just modified ones |
 
 ## Behavior
 
 By default, `task new` only includes files that have uncommitted changes (staged or unstaged). Use `--all` to capture all files regardless of git status.
 
 The title is converted to `UPPER_SNAKE_CASE` for the filename.
+And the task is prepended with a generic wrapper describing what to be changed.
+This wrapper can be customized by the user by adding -prefix and -suffix to `codebook.yml`
 
 ## Examples
 
@@ -83,4 +80,4 @@ diff --git a/path/to/file.md b/path/to/file.md
 
 ---
 
-Rendered by CodeBook [`3f2e42c`](codebook:codebook.version)
+Rendered by CodeBook [`4d28f67`](codebook:codebook.version)
