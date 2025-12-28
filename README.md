@@ -4,6 +4,8 @@
 
 ### Spec Driven Development for AI agents
 
+[![CodeBook Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/wende/3a91e8802bc5f23a8cc7ac9269d11035/raw/codebook-coverage.json)](https://github.com/wende/codebook)
+
 </div>
 
 Write specs in markdown. CodeBook keeps them in sync with your codebase. Turn changes into tasks for AI to implement.
