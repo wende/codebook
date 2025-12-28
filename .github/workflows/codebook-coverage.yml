@@ -32,25 +32,117 @@ jobs:
         python -m pip install --upgrade pip
         pip install -e ".[dev]"
 
-    - name: Run codebook coverage
-      id: coverage
+    - name: Run coverage on PR branch
+      id: pr_coverage
       run: |
-        OUTPUT=$(python -m codebook.cli task coverage --short 2>/dev/null || true)
-        # Extract percentage from output like "45.2% (123/456 lines)" or default to "0%"
-        COVERAGE=$(echo "$OUTPUT" | grep -oE '^[0-9]+\.[0-9]+%' | head -1 || echo "0%")
-        if [ -z "$COVERAGE" ]; then
-          COVERAGE="0%"
-        fi
-        echo "score=$COVERAGE" >> $GITHUB_OUTPUT
-        echo "CodeBook Coverage: $COVERAGE"
+        # Get JSON coverage for PR branch
+        python -m codebook.cli task coverage --json 2>/dev/null > pr_coverage.json || echo '{"overall":{"percentage":0},"files":{}}' > pr_coverage.json
+
+        # Extract overall score
+        SCORE=$(python -c "import json; data=json.load(open('pr_coverage.json')); print(data['overall']['percentage'])" 2>/dev/null || echo "0")
+        echo "score=${SCORE}%" >> $GITHUB_OUTPUT
+        echo "PR Coverage: ${SCORE}%"
+
+    - name: Get main branch coverage
+      id: main_coverage
+      if: github.event_name == 'pull_request'
+      run: |
+        # Save current HEAD
+        PR_HEAD=$(git rev-parse HEAD)
+
+        # Checkout main branch
+        git checkout origin/${{ github.base_ref }} --quiet
+
+        # Get JSON coverage for main branch
+        python -m codebook.cli task coverage --json 2>/dev/null > main_coverage.json || echo '{"overall":{"percentage":0},"files":{}}' > main_coverage.json
+
+        # Extract overall score
+        SCORE=$(python -c "import json; data=json.load(open('main_coverage.json')); print(data['overall']['percentage'])" 2>/dev/null || echo "0")
+        echo "score=${SCORE}%" >> $GITHUB_OUTPUT
+        echo "Main Coverage: ${SCORE}%"
+
+        # Return to PR branch
+        git checkout $PR_HEAD --quiet
+
+    - name: Generate coverage diff
+      id: diff
+      if: github.event_name == 'pull_request'
+      run: |
+        python << 'EOF'
+        import json
+        import os
+
+        # Load coverage data
+        with open('pr_coverage.json') as f:
+            pr_data = json.load(f)
+        with open('main_coverage.json') as f:
+            main_data = json.load(f)
+
+        pr_files = pr_data.get('files', {})
+        main_files = main_data.get('files', {})
+
+        # Find files with changed coverage
+        all_files = set(pr_files.keys()) | set(main_files.keys())
+        changes = []
+
+        for file in sorted(all_files):
+            pr_pct = pr_files.get(file, {}).get('percentage', 0)
+            main_pct = main_files.get(file, {}).get('percentage', 0)
+
+            if pr_pct != main_pct:
+                diff = pr_pct - main_pct
+                emoji = "📈" if diff > 0 else "📉"
+                changes.append({
+                    'file': file,
+                    'main': main_pct,
+                    'pr': pr_pct,
+                    'diff': diff,
+                    'emoji': emoji
+                })
+
+        # Sort by absolute diff (biggest changes first)
+        changes.sort(key=lambda x: abs(x['diff']), reverse=True)
+
+        # Build markdown table
+        if changes:
+            table = "| File | Main | PR | Change |\n|------|------|-----|--------|\n"
+            for c in changes[:20]:  # Limit to top 20 changes
+                sign = "+" if c['diff'] > 0 else ""
+                table += f"| `{c['file']}` | {c['main']:.1f}% | {c['pr']:.1f}% | {c['emoji']} {sign}{c['diff']:.1f}% |\n"
+            if len(changes) > 20:
+                table += f"\n*...and {len(changes) - 20} more files with changes*\n"
+        else:
+            table = "*No coverage changes detected*"
+
+        # Write to environment file
+        with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+            # Use heredoc style for multiline output
+            f.write(f"table<<EOFTABLE\n{table}\nEOFTABLE\n")
+            f.write(f"has_changes={'true' if changes else 'false'}\n")
+        EOF
 
     - name: Comment on PR
       if: github.event_name == 'pull_request'
       uses: actions/github-script@v7
       with:
         script: |
-          const coverage = '${{ steps.coverage.outputs.score }}';
-          const body = `## 📚 CodeBook Coverage\n\n**Coverage Score:** ${coverage}`;
+          const prScore = '${{ steps.pr_coverage.outputs.score }}';
+          const mainScore = '${{ steps.main_coverage.outputs.score }}';
+          const diffTable = `${{ steps.diff.outputs.table }}`;
+
+          const prNum = parseFloat(prScore);
+          const mainNum = parseFloat(mainScore);
+          const diff = prNum - mainNum;
+          const diffStr = diff >= 0 ? `+${diff.toFixed(1)}%` : `${diff.toFixed(1)}%`;
+          const emoji = diff > 0 ? '📈' : (diff < 0 ? '📉' : '➡️');
+
+          const body = `## 📚 CodeBook Coverage
+
+          **Overall:** ${prScore} (${emoji} ${diffStr} from main)
+
+          ### Changed Files
+
+          ${diffTable}`;
 
           // Find existing comment
           const { data: comments } = await github.rest.issues.listComments({
@@ -88,7 +180,7 @@ jobs:
         gistID: ${{ vars.COVERAGE_GIST_ID }}
         filename: codebook-coverage.json
         label: codebook coverage
-        message: ${{ steps.coverage.outputs.score }}
-        valColorRange: ${{ steps.coverage.outputs.score }}
+        message: ${{ steps.pr_coverage.outputs.score }}
+        valColorRange: ${{ steps.pr_coverage.outputs.score }}
         maxColorRange: 100
         minColorRange: 0

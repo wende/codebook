@@ -1328,7 +1328,13 @@ def task_delete(title: str | None, force: bool) -> None:
     is_flag=True,
     help="Show only the coverage score",
 )
-def task_coverage(path_glob: str, detailed: bool, short: bool) -> None:
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    help="Output coverage data as JSON (for CI integration)",
+)
+def task_coverage(path_glob: str, detailed: bool, short: bool, output_json: bool) -> None:
     """Analyze task coverage for the project.
 
     Shows what percentage of code lines are covered by task documentation.
@@ -1415,7 +1421,8 @@ def task_coverage(path_glob: str, detailed: bool, short: bool) -> None:
 
         return commit_to_task
 
-    click.echo("Extracting commits from task files...")
+    if not output_json:
+        click.echo("Extracting commits from task files...")
     task_commits = extract_commits_from_tasks()
 
     if not task_commits:
@@ -1423,7 +1430,10 @@ def task_coverage(path_glob: str, detailed: bool, short: bool) -> None:
         click.echo("Task files must be committed to git for coverage tracking.", err=True)
         return
 
-    click.echo(f"Found {len(task_commits)} commits in {len(set(task_commits.values()))} tasks\n")
+    if not output_json:
+        click.echo(
+            f"Found {len(task_commits)} commits in {len(set(task_commits.values()))} tasks\n"
+        )
 
     # Get all files to analyze based on path glob
     scope_path = Path(path_glob).resolve()
@@ -1457,7 +1467,8 @@ def task_coverage(path_glob: str, detailed: bool, short: bool) -> None:
         click.echo("No files to analyze in scope.", err=True)
         return
 
-    click.echo(f"Analyzing {len(files_to_analyze)} file(s)...\n")
+    if not output_json:
+        click.echo(f"Analyzing {len(files_to_analyze)} file(s)...\n")
 
     # Analyze coverage per file
     file_coverage: dict[Path, dict[str, any]] = {}
@@ -1521,6 +1532,28 @@ def task_coverage(path_glob: str, detailed: bool, short: bool) -> None:
     # If --short flag, just print the score and exit
     if short:
         click.echo(f"{overall_pct:.1f}% ({total_covered}/{total_lines} lines)")
+        return
+
+    # If --json flag, output JSON and exit
+    if output_json:
+        import json
+
+        json_output = {
+            "overall": {
+                "percentage": round(overall_pct, 1),
+                "covered": total_covered,
+                "total": total_lines,
+            },
+            "files": {
+                str(fp.relative_to(git_root)): {
+                    "percentage": round(data["percentage"], 1),
+                    "covered": data["covered"],
+                    "total": data["total"],
+                }
+                for fp, data in file_coverage.items()
+            },
+        }
+        click.echo(json.dumps(json_output))
         return
 
     # Display summary

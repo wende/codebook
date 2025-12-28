@@ -945,6 +945,71 @@ index 0000000..{commit_sha}
         assert "File Coverage:" not in result.output
         assert "====" not in result.output
 
+    def test_task_coverage_json_flag(self, git_repo: Path):
+        """Should output JSON with --json flag."""
+        import json
+
+        runner = CliRunner()
+
+        # Create a source file and commit it
+        src_file = git_repo / "test.py"
+        src_file.write_text("print('hello')\n")
+        subprocess.run(["git", "add", "test.py"], cwd=git_repo, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Add test"],
+            cwd=git_repo,
+            capture_output=True,
+        )
+
+        # Get the commit SHA
+        result_sha = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=git_repo,
+            capture_output=True,
+            text=True,
+        )
+        commit_sha = result_sha.stdout.strip()
+
+        # Create a task file
+        tasks_dir = git_repo / "tasks"
+        tasks_dir.mkdir(parents=True)
+        task_file = tasks_dir / "202412281530-TEST.md"
+        task_content = f"""# Test
+
+```diff
+diff --git a/test.py b/test.py
+index 0000000..{commit_sha}
+--- a/test.py
++++ b/test.py
+@@ -0,0 +1 @@
++print('hello')
+```
+"""
+        task_file.write_text(task_content)
+
+        # Commit the task file so git blame can find it
+        subprocess.run(["git", "add", str(task_file)], cwd=git_repo, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Add task"],
+            cwd=git_repo,
+            capture_output=True,
+        )
+
+        # Run coverage with --json flag
+        result = runner.invoke(main, ["task", "coverage", str(git_repo), "--json"])
+
+        assert result.exit_code == 0
+        # Output should be valid JSON
+        data = json.loads(result.output.strip())
+        assert "overall" in data
+        assert "files" in data
+        assert "percentage" in data["overall"]
+        assert "covered" in data["overall"]
+        assert "total" in data["overall"]
+        # Should NOT have any non-JSON output
+        assert "Extracting commits" not in result.output
+        assert "Analyzing" not in result.output
+
     def test_task_stats_no_tasks(self, runner: CliRunner):
         """Should error when no tasks directory exists."""
         with runner.isolated_filesystem():
