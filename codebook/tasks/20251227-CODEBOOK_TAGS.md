@@ -68,12 +68,12 @@ index a119bc5..23a1bc1 100644
  Returns the current CodeBook version (git tag/SHA):
  
  ```markdown
--[`cc99d25`](codebook:codebook.version)
-+[`cc99d25`](codebook:codebook.version)
+-[`026a01a`](codebook:codebook.version)
++[`026a01a`](codebook:codebook.version)
  ```
  
--**Current version:** [`cc99d25`](codebook:codebook.version)
-+**Current version:** [`cc99d25`](codebook:codebook.version)
+-**Current version:** [`026a01a`](codebook:codebook.version)
++**Current version:** [`026a01a`](codebook:codebook.version)
  
  ## Template Resolution
  
@@ -81,8 +81,8 @@ index a119bc5..23a1bc1 100644
  
  ---
  
--Rendered by CodeBook [`cc99d25`](codebook:codebook.version)
-+Rendered by CodeBook [`cc99d25`](codebook:codebook.version)
+-Rendered by CodeBook [`026a01a`](codebook:codebook.version)
++Rendered by CodeBook [`026a01a`](codebook:codebook.version)
 ```
 
 ```diff
@@ -111,7 +111,7 @@ index d4d6cee..3f01165 100644
  
  ---
  
--Rendered by CodeBook [`cc99d25`](codebook:codebook.version)
-+Rendered by CodeBook [`cc99d25`](codebook:codebook.version)
+-Rendered by CodeBook [`026a01a`](codebook:codebook.version)
++Rendered by CodeBook [`026a01a`](codebook:codebook.version)
 ```
 

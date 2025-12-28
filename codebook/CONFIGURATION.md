@@ -185,7 +185,8 @@ codebook watch docs/ --exec --cicada
 
 ---
 
-Rendered by CodeBook [`cc99d25`](codebook:codebook.version)
+Rendered by CodeBook [`026a01a`](codebook:codebook.version)
 
 --- BACKLINKS ---
+[Configuration](CLIENT_SERVER.md "codebook:backlink")
 [Configuration](README.md "codebook:backlink")

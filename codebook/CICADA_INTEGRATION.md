@@ -34,7 +34,7 @@ Search for modules:
 ```html
 <cicada endpoint="search-module" module_name="CodeBookParser" jq=".module,.location">
 CodeBookParser  
-src/codebook/parser.py:94
+src/codebook/parser.py:130
 </cicada>
 ```
 
@@ -99,7 +99,7 @@ Returns structured JSON data:
       "arity": 0,
       "full_name": "_file_src.codebook.renderer.get_codebook_version/0",
       "signature": "def get_codebook_version() -> str:",
-      "location": "src/codebook/renderer.py:22",
+      "location": "src/codebook/renderer.py:23",
       "type": "public",
       "doc": "Get the current codebook version from git.\n\n    Returns:\n        Version string in format 'tag (short_sha)' or just 'sha' if no tag.",
       "call_sites": []
@@ -115,7 +115,7 @@ Returns formatted markdown:
 
 <cicada endpoint="search-function" function_name="get_codebook_version" format="markdown">
 ---
-src/codebook/renderer.py:22
+src/codebook/renderer.py:23
 _file_src.codebook.renderer.get_codebook_version()
 *No call sites found*
 
@@ -145,8 +145,9 @@ _file_src.codebook.cli
 ### Extract array of values
 
 ```html
-<cicada endpoint="search-function" function_name="render" jq=".results[*].location">
-
+<cicada endpoint="search-function" function_name="render" jq=".results[].location">
+src/codebook/cli.py:132  
+src/codebook/parser.py:94
 </cicada>
 ```
 
@@ -155,7 +156,7 @@ _file_src.codebook.cli
 Supported expressions:
 - `.key` - Access object key
 - `[0]` - Access array index
-- `[*]` - Get all array elements
+- `[]` - Get all array elements
 - `.key1.key2[0].key3` - Chained access
 
 ## Enabling Cicada

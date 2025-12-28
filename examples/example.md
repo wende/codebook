@@ -65,14 +65,14 @@ Found 2 match(es):
 ---
 
 _file_src.codebook.cli.render()
-src/codebook/cli.py:108
+src/codebook/cli.py:132
 *No call sites found*
 
 
 ---
 
 CodeBookLink.render()
-src/codebook/parser.py:51
+src/codebook/parser.py:94
 *No call sites found*
 
 </cicada>
@@ -89,24 +89,7 @@ _file_src.codebook.cli
 
 Extracted all function signatures with jq:
 <cicada endpoint="search-function" function_name="render" jq=".results[*].signature">
-@main.command()
-@click.argument("directory", type=click.Path(exists=True, file_okay=False, path_type=Path))
-@click.option("--recursive/--no-recursive", default=True, help="Process subdirectories recursively")
-@click.option("--dry-run", is_flag=True, help="Show what would be changed without modifying files")
-@click.option("--exec/--no-exec", "execute_code", default=False, help="Execute code blocks via Jupyter kernel")
-@click.pass_context
-def render(
-  ctx: click.Context,
-  directory: Path,
-  recursive: bool,
-  dry_run: bool,
-  execute_code: bool
-) -> None:
 
-def render(
-  self,
-  new_value: str
-) -> str:
 </cicada>
 
 ## Usage
@@ -123,4 +106,4 @@ codebook watch examples/ --base-url http://localhost:3000
 
 ---
 
-Rendered by CodeBook [`4f4a722`](codebook:codebook.version)
+Rendered by CodeBook [`026a01a`](codebook:codebook.version)

@@ -58,7 +58,13 @@ class CodeBookConfig:
     watch_dir: str = "."
 
     # Tasks directory (automatically ignored in watch and render commands)
-    tasks_dir: str = ".codebook/tasks"
+    # Defaults to {watch_dir}/tasks if not specified
+    tasks_dir: str = ""
+
+    def __post_init__(self) -> None:
+        """Set default tasks_dir based on watch_dir if not specified."""
+        if not self.tasks_dir:
+            self.tasks_dir = str(Path(self.watch_dir) / "tasks")
 
     # Features
     exec: bool = False
@@ -138,9 +144,13 @@ class CodeBookConfig:
             start=cicada_data.get("start", False),
         )
 
+        watch_dir = data.get("watch_dir", ".")
+        # Default tasks_dir to {watch_dir}/tasks if not specified
+        tasks_dir = data.get("tasks_dir", str(Path(watch_dir) / "tasks"))
+
         return cls(
-            watch_dir=data.get("watch_dir", "."),
-            tasks_dir=data.get("tasks_dir", ".codebook/tasks"),
+            watch_dir=watch_dir,
+            tasks_dir=tasks_dir,
             exec=data.get("exec", False),
             recursive=data.get("recursive", True),
             backend=backend,

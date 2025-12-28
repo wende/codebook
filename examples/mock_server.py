@@ -10,6 +10,11 @@ Usage:
 The server runs on http://localhost:3000 by default.
 """
 
+# Suppress Python 3.13+ free-threaded GIL warning from watchdog (used by Flask debug mode)
+import warnings
+
+warnings.filterwarnings("ignore", message=".*GIL.*")
+
 import argparse
 
 from flask import Flask, jsonify, request

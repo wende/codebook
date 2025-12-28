@@ -1,7 +1,7 @@
 # CodeBook Configuration
 # Run with: codebook run
 
-watch_dir: .
+watch_dir: codebook
 exec: true
 recursive: true
 timeout: 10.0

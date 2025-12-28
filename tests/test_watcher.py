@@ -123,6 +123,7 @@ class TestCodeBookWatcher:
         """Create a mock renderer."""
         renderer = MagicMock(spec=CodeBookRenderer)
         renderer.render_file.return_value = RenderResult(path=Path("test.md"))
+        renderer._is_in_tasks_dir.return_value = False  # Don't ignore any files
         return renderer
 
     @pytest.fixture

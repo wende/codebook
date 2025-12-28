@@ -387,7 +387,7 @@ class TestTaskCommands:
         assert "1 file(s)" in result.output
 
         # Verify task file was created
-        tasks_dir = git_repo / ".codebook" / "tasks"
+        tasks_dir = git_repo / "tasks"
         task_files = list(tasks_dir.glob("*.md"))
         assert len(task_files) == 1
         assert "TEST_TASK" in task_files[0].name
@@ -418,7 +418,7 @@ class TestTaskCommands:
         assert "1 file(s)" in result.output
 
         # Verify task file was created
-        tasks_dir = git_repo / ".codebook" / "tasks"
+        tasks_dir = git_repo / "tasks"
         task_files = list(tasks_dir.glob("*.md"))
         assert len(task_files) == 1
 
@@ -459,7 +459,7 @@ class TestTaskCommands:
         assert "2 file(s)" in result.output
 
         # Verify content includes both files
-        tasks_dir = git_repo / ".codebook" / "tasks"
+        tasks_dir = git_repo / "tasks"
         task_files = list(tasks_dir.glob("*.md"))
         content = task_files[0].read_text()
         assert "Modified doc1" in content
@@ -518,7 +518,7 @@ class TestTaskCommands:
         )
 
         assert result.exit_code == 0
-        tasks_dir = git_repo / ".codebook" / "tasks"
+        tasks_dir = git_repo / "tasks"
         task_files = list(tasks_dir.glob("*.md"))
         assert len(task_files) == 1
         assert "MY_SPECIAL_TASK" in task_files[0].name
@@ -536,7 +536,7 @@ class TestTaskCommands:
         runner = CliRunner()
 
         # Create tasks directory with task files
-        tasks_dir = git_repo / ".codebook" / "tasks"
+        tasks_dir = git_repo / "tasks"
         tasks_dir.mkdir(parents=True)
 
         # Create task files with different formats
@@ -556,7 +556,7 @@ class TestTaskCommands:
         """Should handle old date format (YYYYMMDD-)."""
         runner = CliRunner()
 
-        tasks_dir = git_repo / ".codebook" / "tasks"
+        tasks_dir = git_repo / "tasks"
         tasks_dir.mkdir(parents=True)
         (tasks_dir / "20241228-OLD_FORMAT_TASK.md").write_text("Old task")
 
@@ -570,7 +570,7 @@ class TestTaskCommands:
         """Should delete task by title with --force."""
         runner = CliRunner()
 
-        tasks_dir = git_repo / ".codebook" / "tasks"
+        tasks_dir = git_repo / "tasks"
         tasks_dir.mkdir(parents=True)
         task_file = tasks_dir / "202412281530-MY_TASK.md"
         task_file.write_text("Task content")
@@ -588,7 +588,7 @@ class TestTaskCommands:
         """Should error when task not found."""
         runner = CliRunner()
 
-        tasks_dir = git_repo / ".codebook" / "tasks"
+        tasks_dir = git_repo / "tasks"
         tasks_dir.mkdir(parents=True)
         (tasks_dir / "202412281530-EXISTING_TASK.md").write_text("Task")
 
@@ -614,7 +614,7 @@ class TestTaskCommands:
         """Should prompt for confirmation without --force."""
         runner = CliRunner()
 
-        tasks_dir = git_repo / ".codebook" / "tasks"
+        tasks_dir = git_repo / "tasks"
         tasks_dir.mkdir(parents=True)
         task_file = tasks_dir / "202412281530-MY_TASK.md"
         task_file.write_text("Task content")
@@ -634,7 +634,7 @@ class TestTaskCommands:
         """Should cancel deletion when user declines."""
         runner = CliRunner()
 
-        tasks_dir = git_repo / ".codebook" / "tasks"
+        tasks_dir = git_repo / "tasks"
         tasks_dir.mkdir(parents=True)
         task_file = tasks_dir / "202412281530-MY_TASK.md"
         task_file.write_text("Task content")
@@ -653,7 +653,7 @@ class TestTaskCommands:
         """Should show interactive picker when no title provided."""
         runner = CliRunner()
 
-        tasks_dir = git_repo / ".codebook" / "tasks"
+        tasks_dir = git_repo / "tasks"
         tasks_dir.mkdir(parents=True)
         task1 = tasks_dir / "202412281530-FIRST_TASK.md"
         task2 = tasks_dir / "202412281545-SECOND_TASK.md"
@@ -681,7 +681,7 @@ class TestTaskCommands:
     def test_task_coverage_not_git_repo(self, runner: CliRunner):
         """Should error when not in a git repository."""
         with runner.isolated_filesystem() as tmpdir:
-            tasks_dir = Path(tmpdir) / ".codebook" / "tasks"
+            tasks_dir = Path(tmpdir) / "tasks"
             tasks_dir.mkdir(parents=True)
             (tasks_dir / "test.md").write_text("test")
 
@@ -712,7 +712,7 @@ class TestTaskCommands:
         commit_sha = result_sha.stdout.strip()
 
         # Create a task file with the commit
-        tasks_dir = git_repo / ".codebook" / "tasks"
+        tasks_dir = git_repo / "tasks"
         tasks_dir.mkdir(parents=True)
         task_file = tasks_dir / "202412281530-ADD_HELLO.md"
         task_content = f"""# Add Hello Function
@@ -761,7 +761,7 @@ index 0000000..{commit_sha}
         commit_sha = result_sha.stdout.strip()
 
         # Create a task file
-        tasks_dir = git_repo / ".codebook" / "tasks"
+        tasks_dir = git_repo / "tasks"
         tasks_dir.mkdir(parents=True)
         task_file = tasks_dir / "202412281530-TEST.md"
         task_content = f"""# Test
@@ -812,7 +812,7 @@ index 0000000..{commit_sha}
         commit_sha = result_sha.stdout.strip()
 
         # Create and commit a task file
-        tasks_dir = git_repo / ".codebook" / "tasks"
+        tasks_dir = git_repo / "tasks"
         tasks_dir.mkdir(parents=True)
         task_file = tasks_dir / "202412281530-TEST.md"
         task_content = f"""# Test task
@@ -867,7 +867,7 @@ index 0000000..{commit_sha}
         commit_sha = result_sha.stdout.strip()
 
         # Create a task file
-        tasks_dir = git_repo / ".codebook" / "tasks"
+        tasks_dir = git_repo / "tasks"
         tasks_dir.mkdir(parents=True)
         task_file = tasks_dir / "202412281530-TEST.md"
         task_content = f"""# Test
@@ -909,7 +909,7 @@ index 0000000..{commit_sha}
     def test_task_stats_not_git_repo(self, runner: CliRunner):
         """Should error when not in a git repository."""
         with runner.isolated_filesystem() as tmpdir:
-            tasks_dir = Path(tmpdir) / ".codebook" / "tasks"
+            tasks_dir = Path(tmpdir) / "tasks"
             tasks_dir.mkdir(parents=True)
             (tasks_dir / "test.md").write_text("test")
 
@@ -940,7 +940,7 @@ index 0000000..{commit_sha}
         commit_sha = result_sha.stdout.strip()
 
         # Create a task file
-        tasks_dir = git_repo / ".codebook" / "tasks"
+        tasks_dir = git_repo / "tasks"
         tasks_dir.mkdir(parents=True)
         task_file = tasks_dir / "202412281530-ADD_FEATURE.md"
         task_content = f"""# Add Feature
@@ -993,7 +993,7 @@ index 0000000..{commit_sha}
         )
 
         # Create task files
-        tasks_dir = git_repo / ".codebook" / "tasks"
+        tasks_dir = git_repo / "tasks"
         tasks_dir.mkdir(parents=True)
 
         # Earlier task
@@ -1053,7 +1053,7 @@ diff --git a/file2.py b/file2.py
         )
 
         # Create a task file with multiple files
-        tasks_dir = git_repo / ".codebook" / "tasks"
+        tasks_dir = git_repo / "tasks"
         tasks_dir.mkdir(parents=True)
         task_file = tasks_dir / "202412281530-MULTI_FILE.md"
         task_content = """# Multi File Task
@@ -1089,7 +1089,7 @@ diff --git a/module2.py b/module2.py
         """Should handle tasks with no files."""
         runner = CliRunner()
 
-        tasks_dir = git_repo / ".codebook" / "tasks"
+        tasks_dir = git_repo / "tasks"
         tasks_dir.mkdir(parents=True)
         task_file = tasks_dir / "202412281530-EMPTY_TASK.md"
         task_file.write_text("# Empty Task\n\nNo diffs here.\n")
@@ -1136,7 +1136,7 @@ diff --git a/module2.py b/module2.py
         assert worktree_path.exists(), f"Worktree directory not found at {worktree_path}"
 
         # Verify task file was created in worktree
-        worktree_tasks_dir = worktree_path / ".codebook" / "tasks"
+        worktree_tasks_dir = worktree_path / "tasks"
         assert worktree_tasks_dir.exists()
         task_files = list(worktree_tasks_dir.glob("*THEME_SUPPORT.md"))
         assert len(task_files) == 1

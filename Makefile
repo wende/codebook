@@ -3,37 +3,23 @@
 # Configuration
 CICADA_PORT ?= 9999
 CODEBOOK_PORT ?= 3000
-WATCH_DIR ?= .codebook
 
-.PHONY: all cicada mock watch dev stop test clean
+.PHONY: all dev stop test clean cicada mock
 
 # Start all services
 all: dev
 
-# Start Cicada server
+# Start dev environment using codebook.yml
+dev:
+	codebook run
+
+# Start Cicada server only
 cicada:
 	cicada serve --port $(CICADA_PORT)
 
-# Start mock backend server
+# Start mock backend server only
 mock:
 	python examples/mock_server.py --port $(CODEBOOK_PORT)
-
-# Start codebook watcher
-watch:
-	codebook -b http://localhost:$(CODEBOOK_PORT) --cicada-url http://localhost:$(CICADA_PORT) \
-		watch $(WATCH_DIR) --cicada --exec
-
-# Start all services - Ctrl+C stops everything
-dev:
-	@trap 'kill 0' EXIT; \
-	echo "Starting Cicada on port $(CICADA_PORT)..."; \
-	cicada serve --port $(CICADA_PORT) & \
-	echo "Starting mock backend on port $(CODEBOOK_PORT)..."; \
-	python examples/mock_server.py --port $(CODEBOOK_PORT) & \
-	sleep 1; \
-	echo "Starting codebook watcher..."; \
-	codebook -b http://localhost:$(CODEBOOK_PORT) --cicada-url http://localhost:$(CICADA_PORT) \
-		watch $(WATCH_DIR) --cicada --exec
 
 # Stop any leftover background services
 stop:
@@ -41,26 +27,9 @@ stop:
 	@pkill -f "mock_server.py" 2>/dev/null || true
 	@echo "Stopped background services"
 
-# Start all services in tmux panes
-dev-tmux:
-	tmux new-session -d -s codebook 'make cicada' \; \
-		split-window -h 'make mock' \; \
-		split-window -v 'sleep 2 && make watch' \; \
-		attach
-
 # Run tests
 test:
 	python -m pytest tests/ -v
-
-# Render once (no watch)
-render:
-	codebook -b http://localhost:$(CODEBOOK_PORT) --cicada-url http://localhost:$(CICADA_PORT) \
-		render $(WATCH_DIR) --cicada
-
-# Dry run render
-dry-run:
-	codebook -b http://localhost:$(CODEBOOK_PORT) --cicada-url http://localhost:$(CICADA_PORT) \
-		render $(WATCH_DIR) --cicada --dry-run
 
 # Clean up
 clean:

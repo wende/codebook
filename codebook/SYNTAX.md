@@ -76,4 +76,8 @@ When rendered, `api.md` will automatically have a backlink added:
 
 See also: [Templates](TEMPLATES.md)
 
-Rendered by CodeBook [`3d86e3c`](codebook:codebook.version)
+Rendered by CodeBook [`026a01a`](codebook:codebook.version)
+
+--- BACKLINKS ---
+[Syntax](TEMPLATES.md "codebook:backlink")
+[Syntax](README.md "codebook:backlink")

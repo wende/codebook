@@ -12,10 +12,10 @@ These templates are resolved **locally by the CLI** - no server required.
 
 **Example:**
 ```markdown
-[`3d86e3c`](codebook:codebook.version)
+[`026a01a`](codebook:codebook.version)
 ```
 
-**Current version:** [`3d86e3c`](codebook:codebook.version)
+**Current version:** [`026a01a`](codebook:codebook.version)
 
 ## Server Templates
 
@@ -47,4 +47,9 @@ Results from the backend are cached based on the `cache_ttl` setting.
 
 See also: [Syntax](SYNTAX.md) | [Client/Server](CLIENT_SERVER.md)
 
-Rendered by CodeBook [`3d86e3c`](codebook:codebook.version)
+Rendered by CodeBook [`026a01a`](codebook:codebook.version)
+
+--- BACKLINKS ---
+[Templates](SYNTAX.md "codebook:backlink")
+[Templates](README.md "codebook:backlink")
+[Templates](CLIENT_SERVER.md "codebook:backlink")

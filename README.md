@@ -280,7 +280,23 @@ Requires `--exec` flag or `exec: true` in config.
 ### Cicada Query Blocks
 ```html
 <cicada endpoint="search-function" function_name="render" format="markdown">
-Results appear here
+Functions matching render
+
+Found 2 match(es):
+
+---
+
+_file_src.codebook.cli.render()
+src/codebook/cli.py:132
+*No call sites found*
+
+
+---
+
+CodeBookLink.render()
+src/codebook/parser.py:94
+*No call sites found*
+
 </cicada>
 ```
 Requires `--cicada` flag or `cicada.enabled: true` in config.
@@ -428,7 +444,23 @@ Query your codebase with live code exploration:
 
 ```html
 <cicada endpoint="search-function" function_name="render" format="markdown">
-Function results...
+Functions matching render
+
+Found 2 match(es):
+
+---
+
+_file_src.codebook.cli.render()
+src/codebook/cli.py:132
+*No call sites found*
+
+
+---
+
+CodeBookLink.render()
+src/codebook/parser.py:94
+*No call sites found*
+
 </cicada>
 ```
 
@@ -441,7 +473,7 @@ Available endpoints:
 Supports jq extraction:
 ```html
 <cicada endpoint="search-function" function_name="render" jq=".total_matches">
-42
+2
 </cicada>
 ```
 

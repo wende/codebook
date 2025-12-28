@@ -105,4 +105,8 @@ export CODEBOOK_BASE_URL=http://localhost:3000
 
 See also: [Configuration](CONFIGURATION.md) | [Templates](TEMPLATES.md)
 
-Rendered by CodeBook [`3d86e3c`](codebook:codebook.version)
+Rendered by CodeBook [`026a01a`](codebook:codebook.version)
+
+--- BACKLINKS ---
+[Client/Server Architecture](TEMPLATES.md "codebook:backlink")
+[Client/Server](README.md "codebook:backlink")

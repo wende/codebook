@@ -54,7 +54,7 @@ codebook run
 
 | Metric    | Value                               |
 | --------- | ----------------------------------- |
-| Version   | [`3d86e3c`](codebook:codebook.version)  |
+| Version   | [`026a01a`](codebook:codebook.version)  |
 
 ## Documentation Files
 
@@ -62,4 +62,4 @@ codebook run
 
 ---
  
-Rendered by CodeBook [`3d86e3c`](codebook:codebook.version)
+Rendered by CodeBook [`026a01a`](codebook:codebook.version)

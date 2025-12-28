@@ -52,7 +52,7 @@ index 14e60b7..70e619f 100644
  
  ---
  
--Rendered by CodeBook [`cc99d25`](codebook:codebook.version)
-+Rendered by CodeBook [`cc99d25`](codebook:codebook.version)
+-Rendered by CodeBook [`026a01a`](codebook:codebook.version)
++Rendered by CodeBook [`026a01a`](codebook:codebook.version)
 ```
 

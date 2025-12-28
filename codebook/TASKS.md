@@ -174,7 +174,7 @@ The stats are calculated for each task by
  - the number of lines covered by the task.
  - features modified by the task 
 
-Rendered by CodeBook [`3d86e3c`](codebook:codebook.version)
+Rendered by CodeBook [`026a01a`](codebook:codebook.version)
 
 --- BACKLINKS ---
 [Tasks](README.md "codebook:backlink")

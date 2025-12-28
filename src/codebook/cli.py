@@ -12,6 +12,12 @@ Usage:
     codebook run                   # Run with codebook.yml config
 """
 
+# Suppress Python 3.13+ free-threaded GIL warning from watchdog
+# Must be before any imports that load watchdog
+import warnings
+
+warnings.filterwarnings("ignore", message=".*GIL.*")
+
 import logging
 import os
 import signal
