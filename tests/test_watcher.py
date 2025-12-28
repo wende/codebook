@@ -195,7 +195,7 @@ class TestCodeBookWatcher:
     ):
         """Should trigger render when file changes."""
         md_file = temp_dir / "test.md"
-        md_file.write_text("[`old`](codebook:test)")
+        md_file.write_text("[`old`](codebook:server.test)")
 
         watcher.watch(temp_dir)
         watcher.start_async()
@@ -203,7 +203,7 @@ class TestCodeBookWatcher:
         try:
             # Modify the file
             time.sleep(0.1)  # Let watcher start
-            md_file.write_text("[`new`](codebook:test)")
+            md_file.write_text("[`new`](codebook:server.test)")
             time.sleep(0.2)  # Wait for debounce
 
             mock_renderer.render_file.assert_called()

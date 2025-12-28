@@ -78,7 +78,7 @@ class TestCodeBookDiffer:
     ):
         """Should return error when not in git repository."""
         md_file = temp_dir / "test.md"
-        md_file.write_text("[`value`](codebook:test)")
+        md_file.write_text("[`value`](codebook:server.test)")
 
         result = differ.diff_file(md_file)
 
@@ -95,7 +95,7 @@ class TestCodeBookDiffer:
 
         # Create and commit a file
         md_file = git_repo / "test.md"
-        md_file.write_text("[`old`](codebook:test)")
+        md_file.write_text("[`old`](codebook:server.test)")
         subprocess.run(["git", "add", "test.md"], cwd=git_repo, capture_output=True)
         subprocess.run(
             ["git", "commit", "-m", "Initial"],
@@ -104,10 +104,10 @@ class TestCodeBookDiffer:
         )
 
         # Modify the file
-        md_file.write_text("[`new`](codebook:test)")
+        md_file.write_text("[`new`](codebook:server.test)")
 
         # Mock renderer to return different content
-        mock_renderer.render_content.return_value = ("[`new`](codebook:test)", {"test": "new"})
+        mock_renderer.render_content.return_value = ("[`new`](codebook:server.test)", {"test": "new"})
 
         result = differ.diff_file(md_file)
 
@@ -207,15 +207,15 @@ class TestCodeBookDiffer:
         differ = CodeBookDiffer(mock_renderer)
 
         md_file = temp_dir / "test.md"
-        md_file.write_text("[`old`](codebook:test)")
+        md_file.write_text("[`old`](codebook:server.test)")
         mock_renderer.render_content.return_value = (
-            "[`new`](codebook:test)",
+            "[`new`](codebook:server.test)",
             {"test": "new"},
         )
 
         result = differ.show_rendered(md_file)
 
-        assert result == "[`new`](codebook:test)"
+        assert result == "[`new`](codebook:server.test)"
 
     def test_show_rendered_returns_none_on_error(
         self,
@@ -262,8 +262,8 @@ class TestCodeBookDiffer:
         differ = CodeBookDiffer(mock_renderer)
 
         # Create and commit files
-        (git_repo / "file1.md").write_text("[`a`](codebook:test)")
-        (git_repo / "file2.md").write_text("[`b`](codebook:test)")
+        (git_repo / "file1.md").write_text("[`a`](codebook:server.test)")
+        (git_repo / "file2.md").write_text("[`b`](codebook:server.test)")
         subprocess.run(["git", "add", "."], cwd=git_repo, capture_output=True)
         subprocess.run(
             ["git", "commit", "-m", "Initial"],
@@ -272,8 +272,8 @@ class TestCodeBookDiffer:
         )
 
         # Modify files
-        (git_repo / "file1.md").write_text("[`A`](codebook:test)")
-        (git_repo / "file2.md").write_text("[`B`](codebook:test)")
+        (git_repo / "file1.md").write_text("[`A`](codebook:server.test)")
+        (git_repo / "file2.md").write_text("[`B`](codebook:server.test)")
 
         # Mock render to return modified content
         def render_side_effect(content):

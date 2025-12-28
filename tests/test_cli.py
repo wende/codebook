@@ -84,11 +84,11 @@ class TestCLI:
         with runner.isolated_filesystem() as tmpdir:
             test_dir = Path(tmpdir) / "codebook"
             test_dir.mkdir()
-            (test_dir / "test.md").write_text("[`old`](codebook:test)")
+            (test_dir / "test.md").write_text("[`old`](codebook:server.test)")
 
             with patch("codebook.cli.CodeBookClient") as mock_client_class:
                 mock_client = MagicMock()
-                mock_client.resolve_batch.return_value = {"test": "new"}
+                mock_client.resolve_batch.return_value = {"server.test": "new"}
                 mock_client_class.return_value = mock_client
 
                 result = runner.invoke(main, ["render", "--dry-run", str(test_dir)])
@@ -101,11 +101,11 @@ class TestCLI:
         with runner.isolated_filesystem() as tmpdir:
             test_dir = Path(tmpdir) / "codebook"
             test_dir.mkdir()
-            (test_dir / "test.md").write_text("[`old`](codebook:test)")
+            (test_dir / "test.md").write_text("[`old`](codebook:server.test)")
 
             with patch("codebook.cli.CodeBookClient") as mock_client_class:
                 mock_client = MagicMock()
-                mock_client.resolve_batch.return_value = {"test": "new"}
+                mock_client.resolve_batch.return_value = {"server.test": "new"}
                 mock_client_class.return_value = mock_client
 
                 result = runner.invoke(main, ["render", str(test_dir)])
@@ -155,7 +155,7 @@ class TestCLI:
 
             # Create and commit file
             md_file = Path(tmpdir) / "test.md"
-            md_file.write_text("[`old`](codebook:test)")
+            md_file.write_text("[`old`](codebook:server.test)")
             subprocess.run(["git", "add", "test.md"], cwd=tmpdir, capture_output=True)
             subprocess.run(
                 ["git", "commit", "-m", "Initial"],
@@ -177,17 +177,17 @@ class TestCLI:
         """Should show rendered content."""
         with runner.isolated_filesystem() as tmpdir:
             md_file = Path(tmpdir) / "test.md"
-            md_file.write_text("[`old`](codebook:test)")
+            md_file.write_text("[`old`](codebook:server.test)")
 
             with patch("codebook.cli.CodeBookClient") as mock_client_class:
                 mock_client = MagicMock()
-                mock_client.resolve_batch.return_value = {"test": "new"}
+                mock_client.resolve_batch.return_value = {"server.test": "new"}
                 mock_client_class.return_value = mock_client
 
                 result = runner.invoke(main, ["show", str(md_file)])
 
                 assert result.exit_code == 0
-                assert "[`new`](codebook:test)" in result.output
+                assert "[`new`](codebook:server.test)" in result.output
 
     def test_show_requires_file(self, runner: CliRunner):
         """Should error when given directory."""

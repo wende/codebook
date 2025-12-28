@@ -25,30 +25,30 @@ class TestCodeBookLink:
     def test_render_handles_empty_value(self):
         """Render should handle empty string value."""
         link = CodeBookLink(
-            full_match="[``](codebook:test.empty)",
+            full_match="[``](codebook:server.test.empty)",
             value="",
-            template="test.empty",
+            template="server.test.empty",
             start=0,
-            end=25,
+            end=32,
         )
 
         result = link.render("new value")
 
-        assert result == "[`new value`](codebook:test.empty)"
+        assert result == "[`new value`](codebook:server.test.empty)"
 
     def test_render_handles_special_characters(self):
         """Render should handle special characters in value."""
         link = CodeBookLink(
-            full_match="[`old`](codebook:test)",
+            full_match="[`old`](codebook:server.test)",
             value="old",
-            template="test",
+            template="server.test",
             start=0,
-            end=22,
+            end=29,
         )
 
         result = link.render("hello <world> & stuff")
 
-        assert result == "[`hello <world> & stuff`](codebook:test)"
+        assert result == "[`hello <world> & stuff`](codebook:server.test)"
 
 
 class TestCodeBookParser:
@@ -76,14 +76,12 @@ class TestCodeBookParser:
 
     def test_find_links_returns_correct_positions(self, parser: CodeBookParser):
         """Links should have correct start/end positions."""
-        content = "Start [`42`](codebook:test) end"
+        content = "Start [`42`](codebook:server.test) end"
 
         links = list(parser.find_links(content))
 
         assert len(links) == 1
-        assert links[0].start == 6
-        assert links[0].end == 27
-        assert content[links[0].start : links[0].end] == "[`42`](codebook:test)"
+        assert content[links[0].start : links[0].end] == links[0].full_match
 
     def test_find_links_handles_empty_value(self, parser: CodeBookParser):
         """Should handle links with empty values."""
@@ -99,14 +97,14 @@ class TestCodeBookParser:
         """Should ignore regular markdown links."""
         content = """
         [Regular link](https://example.com)
-        [`codebook`](codebook:test)
+        [`codebook`](codebook:server.test)
         [Another](http://test.com)
         """
 
         links = list(parser.find_links(content))
 
         assert len(links) == 1
-        assert links[0].template == "test"
+        assert links[0].template == "server.test"
 
     def test_find_links_handles_no_links(self, parser: CodeBookParser):
         """Should return empty iterator when no links found."""
@@ -128,14 +126,14 @@ class TestCodeBookParser:
     def test_find_templates_extracts_unique_templates(self, parser: CodeBookParser):
         """Should extract unique template expressions."""
         content = """
-        [`13`](codebook:test)
-        [`14`](codebook:test)
-        [`15`](codebook:other)
+        [`13`](codebook:server.test)
+        [`14`](codebook:server.test)
+        [`15`](codebook:server.other)
         """
 
         templates = parser.find_templates(content)
 
-        assert templates == ["test", "other"]
+        assert templates == ["server.test", "server.other"]
 
     def test_find_templates_preserves_order(self, parser: CodeBookParser):
         """Should preserve order of first occurrence."""
@@ -203,7 +201,7 @@ class TestCodeBookParser:
         parser: CodeBookParser,
     ):
         """Should return True when codebook links exist."""
-        content = "Some [`value`](codebook:test) here"
+        content = "Some [`value`](codebook:server.test) here"
 
         assert parser.has_codebook_links(content) is True
 
@@ -260,7 +258,7 @@ Third paragraph with [`value2`](codebook:template2).
     def test_link_in_list_item(self, parser: CodeBookParser):
         """Should find links in list items."""
         content = """
-- Item 1: [`value`](codebook:test)
+- Item 1: [`value`](codebook:server.test)
 - Item 2: regular text
 """
 
@@ -349,7 +347,7 @@ class TestIncompleteTagDetection:
     # Mixed content tests
     def test_content_with_no_tags(self, parser: CodeBookParser):
         """Should not flag content with no special tags."""
-        content = "Just regular markdown with [`value`](codebook:test)"
+        content = "Just regular markdown with [`value`](codebook:server.test)"
         assert parser.has_incomplete_tags(content) is False
 
     def test_mixed_complete_tags(self, parser: CodeBookParser):

@@ -48,13 +48,13 @@ class TestCodeBookRenderer:
     ):
         """Should find templates in file."""
         md_file = temp_dir / "test.md"
-        md_file.write_text("[`value`](codebook:test)")
-        mock_client.resolve_batch.return_value = {"test": "resolved"}
+        md_file.write_text("[`value`](codebook:server.test)")
+        mock_client.resolve_batch.return_value = {"server.test": "resolved"}
 
         result = renderer.render_file(md_file)
 
         assert result.templates_found == 1
-        mock_client.resolve_batch.assert_called_once_with(["test"])
+        mock_client.resolve_batch.assert_called_once_with(["server.test"])
 
     def test_render_file_updates_values(
         self,
@@ -64,14 +64,14 @@ class TestCodeBookRenderer:
     ):
         """Should update file with resolved values."""
         md_file = temp_dir / "test.md"
-        md_file.write_text("[`old`](codebook:test)")
-        mock_client.resolve_batch.return_value = {"test": "new"}
+        md_file.write_text("[`old`](codebook:server.test)")
+        mock_client.resolve_batch.return_value = {"server.test": "new"}
 
         result = renderer.render_file(md_file)
 
         assert result.changed is True
         assert result.templates_resolved == 1
-        assert md_file.read_text() == "[`new`](codebook:test)"
+        assert md_file.read_text() == "[`new`](codebook:server.test)"
 
     def test_render_file_dry_run_does_not_modify(
         self,
@@ -81,13 +81,13 @@ class TestCodeBookRenderer:
     ):
         """Should not modify file in dry run mode."""
         md_file = temp_dir / "test.md"
-        md_file.write_text("[`old`](codebook:test)")
-        mock_client.resolve_batch.return_value = {"test": "new"}
+        md_file.write_text("[`old`](codebook:server.test)")
+        mock_client.resolve_batch.return_value = {"server.test": "new"}
 
         result = renderer.render_file(md_file, dry_run=True)
 
         assert result.changed is True
-        assert md_file.read_text() == "[`old`](codebook:test)"  # Unchanged
+        assert md_file.read_text() == "[`old`](codebook:server.test)"  # Unchanged
 
     def test_render_file_handles_no_links(
         self,
@@ -126,8 +126,8 @@ class TestCodeBookRenderer:
     ):
         """Should return error when file cannot be written."""
         md_file = temp_dir / "test.md"
-        md_file.write_text("[`old`](codebook:test)")
-        mock_client.resolve_batch.return_value = {"test": "new"}
+        md_file.write_text("[`old`](codebook:server.test)")
+        mock_client.resolve_batch.return_value = {"server.test": "new"}
 
         # Make file read-only
         md_file.chmod(0o444)
@@ -148,7 +148,7 @@ class TestCodeBookRenderer:
     ):
         """Should preserve original when templates cannot be resolved."""
         md_file = temp_dir / "test.md"
-        md_file.write_text("[`old`](codebook:test)")
+        md_file.write_text("[`old`](codebook:server.test)")
         mock_client.resolve_batch.return_value = {}  # No values returned
 
         result = renderer.render_file(md_file)
@@ -156,7 +156,7 @@ class TestCodeBookRenderer:
         assert result.templates_found == 1
         assert result.templates_resolved == 0
         assert result.changed is False
-        assert md_file.read_text() == "[`old`](codebook:test)"
+        assert md_file.read_text() == "[`old`](codebook:server.test)"
 
     def test_render_file_partial_resolution(
         self,
@@ -166,15 +166,15 @@ class TestCodeBookRenderer:
     ):
         """Should update only successfully resolved templates."""
         md_file = temp_dir / "test.md"
-        md_file.write_text("[`a`](codebook:first) and [`b`](codebook:second)")
-        mock_client.resolve_batch.return_value = {"first": "X"}  # Only one resolved
+        md_file.write_text("[`a`](codebook:server.first) and [`b`](codebook:server.second)")
+        mock_client.resolve_batch.return_value = {"server.first": "X"}  # Only one resolved
 
         result = renderer.render_file(md_file)
 
         assert result.templates_found == 2
         assert result.templates_resolved == 1
         assert result.changed is True
-        assert md_file.read_text() == "[`X`](codebook:first) and [`b`](codebook:second)"
+        assert md_file.read_text() == "[`X`](codebook:server.first) and [`b`](codebook:server.second)"
 
     def test_render_directory_processes_all_md_files(
         self,
@@ -183,10 +183,10 @@ class TestCodeBookRenderer:
         temp_dir: Path,
     ):
         """Should process all markdown files in directory."""
-        (temp_dir / "file1.md").write_text("[`a`](codebook:test)")
-        (temp_dir / "file2.md").write_text("[`b`](codebook:test)")
-        (temp_dir / "file3.txt").write_text("[`c`](codebook:test)")  # Not .md
-        mock_client.resolve_batch.return_value = {"test": "new"}
+        (temp_dir / "file1.md").write_text("[`a`](codebook:server.test)")
+        (temp_dir / "file2.md").write_text("[`b`](codebook:server.test)")
+        (temp_dir / "file3.txt").write_text("[`c`](codebook:server.test)")  # Not .md
+        mock_client.resolve_batch.return_value = {"server.test": "new"}
 
         results = renderer.render_directory(temp_dir)
 
@@ -201,9 +201,9 @@ class TestCodeBookRenderer:
         """Should process subdirectories recursively."""
         subdir = temp_dir / "sub"
         subdir.mkdir()
-        (temp_dir / "root.md").write_text("[`a`](codebook:test)")
-        (subdir / "nested.md").write_text("[`b`](codebook:test)")
-        mock_client.resolve_batch.return_value = {"test": "new"}
+        (temp_dir / "root.md").write_text("[`a`](codebook:server.test)")
+        (subdir / "nested.md").write_text("[`b`](codebook:server.test)")
+        mock_client.resolve_batch.return_value = {"server.test": "new"}
 
         results = renderer.render_directory(temp_dir, recursive=True)
 
@@ -218,9 +218,9 @@ class TestCodeBookRenderer:
         """Should not process subdirectories when recursive=False."""
         subdir = temp_dir / "sub"
         subdir.mkdir()
-        (temp_dir / "root.md").write_text("[`a`](codebook:test)")
-        (subdir / "nested.md").write_text("[`b`](codebook:test)")
-        mock_client.resolve_batch.return_value = {"test": "new"}
+        (temp_dir / "root.md").write_text("[`a`](codebook:server.test)")
+        (subdir / "nested.md").write_text("[`b`](codebook:server.test)")
+        mock_client.resolve_batch.return_value = {"server.test": "new"}
 
         results = renderer.render_directory(temp_dir, recursive=False)
 
@@ -247,13 +247,13 @@ class TestCodeBookRenderer:
         mock_client: MagicMock,
     ):
         """Should return rendered content without file I/O."""
-        content = "[`old`](codebook:test)"
-        mock_client.resolve_batch.return_value = {"test": "new"}
+        content = "[`old`](codebook:server.test)"
+        mock_client.resolve_batch.return_value = {"server.test": "new"}
 
         rendered, values = renderer.render_content(content)
 
-        assert rendered == "[`new`](codebook:test)"
-        assert values == {"test": "new"}
+        assert rendered == "[`new`](codebook:server.test)"
+        assert values == {"server.test": "new"}
 
     def test_render_content_handles_no_links(
         self,
@@ -275,7 +275,7 @@ class TestCodeBookRenderer:
         mock_client: MagicMock,
     ):
         """Should return unchanged content when values cannot be resolved."""
-        content = "[`old`](codebook:test)"
+        content = "[`old`](codebook:server.test)"
         mock_client.resolve_batch.return_value = {}
 
         rendered, values = renderer.render_content(content)
@@ -293,21 +293,21 @@ class TestCodeBookRenderer:
         md_file = temp_dir / "test.md"
         content = """# Header
 
-Some text before [`value`](codebook:test) and after.
+Some text before [`value`](codebook:server.test) and after.
 
 ## Subheader
 
 More content.
 """
         md_file.write_text(content)
-        mock_client.resolve_batch.return_value = {"test": "NEW"}
+        mock_client.resolve_batch.return_value = {"server.test": "NEW"}
 
         renderer.render_file(md_file)
 
         result = md_file.read_text()
         assert "# Header" in result
         assert "## Subheader" in result
-        assert "[`NEW`](codebook:test)" in result
+        assert "[`NEW`](codebook:server.test)" in result
 
 
 class TestBacklinkUpdates:

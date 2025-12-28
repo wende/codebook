@@ -17,21 +17,22 @@ from flask import Flask, jsonify, request
 app = Flask(__name__)
 
 # Simulated data store - can be modified via API
+# All templates must start with "server." prefix
 DATA = {
-    "SCIP.language_count": 13,
-    "metrics.files_indexed": 1000,
-    "metrics.concurrent_workers": 5,
-    "project.version": "1.2.3",
-    "project.name": "CICADA",
-    "project.file_count": 42,
-    "project.primary_language": "Python",
-    "stats.total_users": 42,
-    "stats.active_sessions": 7,
-    "config.max_connections": 100,
-    "config.timeout_ms": 5000,
-    "API.endpoint_count": 127,
-    "API.get_response_time": "145ms",
-    "CI.build_status": "Passing",
+    "server.SCIP.language_count": 13,
+    "server.metrics.files_indexed": 1000,
+    "server.metrics.concurrent_workers": 5,
+    "server.project.version": "1.2.3",
+    "server.project.name": "CICADA",
+    "server.project.file_count": 42,
+    "server.project.primary_language": "Python",
+    "server.stats.total_users": 42,
+    "server.stats.active_sessions": 7,
+    "server.config.max_connections": 100,
+    "server.config.timeout_ms": 5000,
+    "server.API.endpoint_count": 127,
+    "server.API.get_response_time": "145ms",
+    "server.CI.build_status": "Passing",
 }
 
 

@@ -198,7 +198,7 @@ class CodeBookRenderer:
 
             # Handle special local templates
             local_templates = [t for t in templates if t.startswith("codebook.")]
-            remote_templates = [t for t in templates if not t.startswith("codebook.")]
+            remote_templates = [t for t in templates if t.startswith("server.")]
 
             for template in local_templates:
                 if template == "codebook.version":

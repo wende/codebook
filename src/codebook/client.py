@@ -7,6 +7,7 @@ template expressions to their current values. Features include:
 - Health check endpoint support
 """
 
+import sys
 import time
 from dataclasses import dataclass, field
 
@@ -46,6 +47,7 @@ class CodeBookClient:
     timeout: float = 10.0
     cache_ttl: float = 60.0
     _cache: dict[str, CacheEntry] = field(default_factory=dict, repr=False)
+    _warned_unreachable: bool = field(default=False, repr=False)
 
     def resolve(self, template: str) -> str | None:
         """Resolve a single template expression.
@@ -75,11 +77,22 @@ class CodeBookClient:
 
             return value
 
-        except requests.RequestException:
+        except requests.RequestException as e:
+            self._warn_unreachable(e)
             return None
         except (ValueError, KeyError):
             # JSON parsing error or missing value key
             return None
+
+    def _warn_unreachable(self, error: Exception) -> None:
+        """Print a warning about server being unreachable (once per session)."""
+        if self._warned_unreachable:
+            return
+        self._warned_unreachable = True
+        print(
+            f"Warning: Server unreachable at {self.base_url} - {error}",
+            file=sys.stderr,
+        )
 
     def resolve_batch(self, templates: list[str]) -> dict[str, str]:
         """Resolve multiple template expressions efficiently.

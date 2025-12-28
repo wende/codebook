@@ -21,7 +21,9 @@ codebook run
 
 ## Features
 
-- **[Link Syntax](LINK_SYNTAX.md)** - Embed dynamic values in markdown
+- **[Syntax](SYNTAX.md)** - Embed dynamic values in markdown
+- **[Templates](TEMPLATES.md)** - Available templates and resolution
+- **[Client/Server](CLIENT_SERVER.md)** - Architecture and API contract
 - **[Code Execution](CODE_EXECUTION.md)** - Run Python code blocks
 - **[Cicada Integration](CICADA_INTEGRATION.md)** - Live code exploration
 - **[Configuration](CONFIGURATION.md)** - YAML config reference
@@ -52,7 +54,7 @@ codebook run
 
 | Metric    | Value                               |
 | --------- | ----------------------------------- |
-| Version   | [`cc99d25`](codebook:codebook.version)  |
+| Version   | [`3d86e3c`](codebook:codebook.version)  |
 
 ## Documentation Files
 
@@ -60,4 +62,4 @@ codebook run
 
 ---
  
-Rendered by CodeBook [`cc99d25`](codebook:codebook.version)
+Rendered by CodeBook [`3d86e3c`](codebook:codebook.version)

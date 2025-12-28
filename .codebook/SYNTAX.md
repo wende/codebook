@@ -1,4 +1,4 @@
-# Link Syntax Reference
+# Syntax Reference
 
 CodeBook supports multiple syntax formats for embedding dynamic values in markdown.
 
@@ -31,10 +31,10 @@ server:
 
 **Example:**
 ```html
-Project: <span data-codebook="project.name">CICADA</span>
+Project: <codebook file="project.name">CICADA</codebook>
 ```
 
-**Renders as:** Project: <span data-codebook="project.name">CICADA</span>
+**Renders as:** Project: <codebook file="project.name">CICADA</codebook>
 
 ## 3. URL Links
 
@@ -72,32 +72,8 @@ When rendered, `api.md` will automatically have a backlink added:
 - Creates `--- BACKLINKS ---` section if needed
 - Can be disabled via frontmatter: `disable: backlinks`
 
-## Special Templates
-
-Use <codebook:TEMPLATES> to list all available templates.
-
-### codebook.version
-
-Returns the current CodeBook version (git tag/SHA):
-
-```markdown
-[`08bb5c1`](codebook:codebook.version)
-```
-
-**Current version:** [`08bb5c1`](codebook:codebook.version)
-
-## Template Resolution
-
-Templates are resolved via HTTP:
-
-1. **Single:** `GET /resolve/{template}` → `{"value": "..."}`
-2. **Batch:** `POST /resolve/batch` → `{"values": {...}}`
-
-Results are cached based on the `cache_ttl` setting.
-
 ---
 
-Rendered by CodeBook [`08bb5c1`](codebook:codebook.version)
+See also: [Templates](TEMPLATES.md)
 
---- BACKLINKS ---
-[Link Syntax](README.md "codebook:backlink")
+Rendered by CodeBook [`3d86e3c`](codebook:codebook.version)
