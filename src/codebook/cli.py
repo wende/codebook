@@ -27,13 +27,13 @@ from pathlib import Path
 
 import click
 
+from .cicada import CicadaClient
 from .client import CodeBookClient
-from .renderer import CodeBookRenderer
-from .watcher import CodeBookWatcher
+from .config import CodeBookConfig
 from .differ import CodeBookDiffer
 from .kernel import CodeBookKernel
-from .cicada import CicadaClient
-from .config import CodeBookConfig
+from .renderer import CodeBookRenderer
+from .watcher import CodeBookWatcher
 
 
 def setup_logging(verbose: bool) -> None:
@@ -638,13 +638,13 @@ def task() -> None:
 
 def _create_task_worktree(title: str, task_name: str, date_prefix: str, scope: Path) -> tuple[Path, Path] | None:
     """Create a new git worktree for a task.
-    
+
     Args:
         title: Human-readable task title
         task_name: UPPER_SNAKE_CASE task name
         date_prefix: YYYYMMDDHHMM timestamp
         scope: Path to the scope being documented
-        
+
     Returns:
         Tuple of (worktree_path, worktree_scope_path), or None if creation failed
     """
@@ -657,7 +657,7 @@ def _create_task_worktree(title: str, task_name: str, date_prefix: str, scope: P
             check=True,
         )
         git_root = Path(result.stdout.strip())
-        
+
         # Resolve scope relative to git root
         scope_resolved = scope.resolve()
         try:
@@ -665,14 +665,14 @@ def _create_task_worktree(title: str, task_name: str, date_prefix: str, scope: P
         except ValueError:
             click.echo(f"Error: Scope {scope} is not within git repository", err=True)
             return None
-        
+
         # Get the root directory name
         root_dir_name = git_root.name
-        
+
         # Create worktree directory name: {rootdir}-{task-title}
         worktree_name = f"{root_dir_name}-{task_name.lower()}"
         worktree_path = git_root.parent / worktree_name
-        
+
         # Get current branch
         result = subprocess.run(
             ["git", "branch", "--show-current"],
@@ -681,50 +681,50 @@ def _create_task_worktree(title: str, task_name: str, date_prefix: str, scope: P
             check=True,
         )
         current_branch = result.stdout.strip()
-        
+
         # Create new branch name for the worktree: task-{task-title}
         branch_name = f"task-{task_name.lower()}"
-        
+
         # Create the worktree
         result = subprocess.run(
             ["git", "worktree", "add", "-b", branch_name, str(worktree_path), current_branch],
             capture_output=True,
             text=True,
         )
-        
+
         if result.returncode != 0:
             click.echo(f"Error creating worktree: {result.stderr}", err=True)
             return None
-            
+
         # Get list of modified and untracked files in scope
         result = subprocess.run(
             ["git", "status", "--porcelain", str(scope)],
             capture_output=True,
             text=True,
         )
-        
+
         if result.returncode == 0 and result.stdout.strip():
             # Copy uncommitted changes to worktree
             for line in result.stdout.split("\n"):
                 if line and len(line) >= 3:
-                    status = line[:2]
+                    line[:2]
                     file_path = line[3:]
-                    
+
                     # Handle renamed files
                     if " -> " in file_path:
                         file_path = file_path.split(" -> ")[1]
-                    
+
                     src_file = git_root / file_path
                     dst_file = worktree_path / file_path
-                    
+
                     if src_file.exists():
                         # Ensure parent directory exists in worktree
                         dst_file.parent.mkdir(parents=True, exist_ok=True)
-                        
+
                         # Copy the file content
                         import shutil
                         shutil.copy2(src_file, dst_file)
-            
+
             # Revert the scoped changes in the source branch
             # Only revert files within the scope
             subprocess.run(
@@ -732,14 +732,14 @@ def _create_task_worktree(title: str, task_name: str, date_prefix: str, scope: P
                 capture_output=True,
                 text=True,
             )
-            
+
             # Also remove any untracked files in scope
             result = subprocess.run(
                 ["git", "status", "--porcelain", str(scope)],
                 capture_output=True,
                 text=True,
             )
-            
+
             if result.returncode == 0:
                 for line in result.stdout.split("\n"):
                     if line and line.startswith("??"):
@@ -747,11 +747,11 @@ def _create_task_worktree(title: str, task_name: str, date_prefix: str, scope: P
                         untracked_file = git_root / file_path
                         if untracked_file.exists():
                             untracked_file.unlink()
-        
+
         # Return worktree path and the scope path within the worktree
         worktree_scope = worktree_path / scope_rel
         return (worktree_path, worktree_scope)
-        
+
     except subprocess.CalledProcessError as e:
         click.echo(f"Git error: {e}", err=True)
         return None
@@ -820,7 +820,7 @@ def task_new(ctx: click.Context, title: str, scope: Path, include_all: bool, wor
         worktree_path, worktree_scope = worktree_info
         click.echo(f"Created worktree at {worktree_path}")
         # Switch to worktree context
-        original_cwd = Path.cwd()
+        Path.cwd()
         os.chdir(worktree_path)
         # Update scope to point to the worktree location
         scope = worktree_scope
@@ -1174,7 +1174,6 @@ def task_coverage(path_glob: str, detailed: bool, short: bool) -> None:
         codebook task coverage --short
     """
     import re
-    from collections import defaultdict
 
     cfg = CodeBookConfig.load()
     tasks_dir = Path(cfg.tasks_dir)
@@ -1437,7 +1436,7 @@ def task_coverage(path_glob: str, detailed: bool, short: bool) -> None:
 
             try:
                 file_lines = file_path.read_text(encoding="utf-8").split("\n")
-                for i, (line_data, line_content) in enumerate(zip(data["lines"], file_lines), 1):
+                for i, (line_data, line_content) in enumerate(zip(data["lines"], file_lines, strict=False), 1):
                     if line_data["covered"]:
                         task_name = line_data["task"]
                         click.echo(f"{i:4} [COVERED by {task_name}] {line_content[:60]}")
@@ -1464,7 +1463,6 @@ def task_stats() -> None:
         codebook task stats
     """
     import re
-    from collections import defaultdict
 
     cfg = CodeBookConfig.load()
     tasks_dir = Path(cfg.tasks_dir)
@@ -1502,7 +1500,6 @@ def task_stats() -> None:
 
         # Parse task date from filename (YYYYMMDDHHMM format)
         task_date_str = None
-        task_timestamp = None
         if len(task_name) >= 12 and task_name[:12].isdigit():
             date_part = task_name[:12]
             task_date_str = (
@@ -1513,7 +1510,7 @@ def task_stats() -> None:
             # Parse timestamp for filtering commits
             try:
                 from datetime import datetime
-                task_timestamp = datetime.strptime(date_part, "%Y%m%d%H%M").timestamp()
+                datetime.strptime(date_part, "%Y%m%d%H%M").timestamp()
             except Exception:
                 pass
         elif len(task_name) > 9 and task_name[8] == "-" and task_name[:8].isdigit():
@@ -1523,7 +1520,7 @@ def task_stats() -> None:
             title_part = task_name[9:]
             try:
                 from datetime import datetime
-                task_timestamp = datetime.strptime(date_part, "%Y%m%d").timestamp()
+                datetime.strptime(date_part, "%Y%m%d").timestamp()
             except Exception:
                 pass
         else:
@@ -1534,7 +1531,7 @@ def task_stats() -> None:
         # Format: "diff --git a/path/to/file b/path/to/file"
         file_paths = set()
         in_diff_block = False
-        
+
         for line in content.split('\n'):
             # Check if we're entering a diff block
             if line.startswith('```diff'):
@@ -1544,7 +1541,7 @@ def task_stats() -> None:
             if line.startswith('```') and in_diff_block:
                 in_diff_block = False
                 continue
-            
+
             if in_diff_block:
                 # Extract file paths from diff headers
                 if line.startswith('diff --git'):
@@ -1558,7 +1555,7 @@ def task_stats() -> None:
         # These are the commits that implemented the task
         commits = set()
         commit_full_shas = set()
-        
+
         try:
             # Get git log for the task file itself
             cmd = ["git", "log", "--format=%H", "--follow", "--", str(task_file)]
@@ -1568,7 +1565,7 @@ def task_stats() -> None:
                 capture_output=True,
                 text=True,
             )
-            
+
             if result.returncode == 0 and result.stdout.strip():
                 for line in result.stdout.strip().split("\n"):
                     if line:
@@ -1582,7 +1579,7 @@ def task_stats() -> None:
         total_lines_added = 0
         total_lines_removed = 0
         is_ongoing = len(commits) == 0
-        
+
         if is_ongoing:
             # Task has no commits yet - show current diff to HEAD for all files
             # Get all uncommitted changes (not just the files mentioned in the task)
@@ -1594,7 +1591,7 @@ def task_stats() -> None:
                     capture_output=True,
                     text=True,
                 )
-                
+
                 if result.returncode == 0 and result.stdout.strip():
                     for line in result.stdout.strip().split("\n"):
                         if line:
@@ -1623,7 +1620,7 @@ def task_stats() -> None:
                         capture_output=True,
                         text=True,
                     )
-                    
+
                     if result.returncode == 0:
                         for line in result.stdout.strip().split("\n"):
                             if line:
@@ -1647,7 +1644,7 @@ def task_stats() -> None:
         click.echo(f"  Lines:    +{total_lines_added} -{total_lines_removed}")
         click.echo(f"  Features: {len(file_paths)}")
         if file_paths:
-            click.echo(f"  Files:")
+            click.echo("  Files:")
             for fp in sorted(file_paths):
                 click.echo(f"    - {fp}")
         click.echo()

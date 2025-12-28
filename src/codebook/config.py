@@ -99,7 +99,7 @@ class CodeBookConfig:
         if path is None or not path.exists():
             return cls()
 
-        with open(path, "r") as f:
+        with open(path) as f:
             data = yaml.safe_load(f) or {}
 
         return cls._from_dict(data)

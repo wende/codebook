@@ -68,6 +68,7 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "C4"]
+ignore = ["E402", "E501", "E741"]  # E402: imports after warning filters; E501: line length; E741: ambiguous var names
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

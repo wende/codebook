@@ -15,9 +15,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from .parser import CodeBookParser, Frontmatter, LinkType
 from .client import CodeBookClient
 from .config import CodeBookConfig
+from .parser import CodeBookParser, Frontmatter, LinkType
 
 
 def get_codebook_version() -> str:
@@ -57,10 +57,10 @@ def get_codebook_version() -> str:
         return "dev"
 
 if TYPE_CHECKING:
-    from .kernel import CodeBookKernel
     from .cicada import CicadaClient
+    from .kernel import CodeBookKernel
 
-from .cicada import jq_query, format_json_value
+from .cicada import format_json_value, jq_query
 
 logger = logging.getLogger(__name__)
 

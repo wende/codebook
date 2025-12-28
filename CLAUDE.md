@@ -2,37 +2,38 @@
 
 ## Overview
 
-CodeBook is a markdown documentation system that embeds live code references using standard markdown link syntax. It resolves template expressions via HTTP calls to a backend service and updates markdown files in-place.
+CodeBook is a **Spec Driven Development** framework for AI agents.
 
-**Link format:** `[`VALUE`](codebook:TEMPLATE)`
+**Workflow:**
+1. Write feature specs in markdown (`.codebook/` directory)
+2. CodeBook renders live values, executes code, and queries your codebase
+3. Turn spec changes into tasks via `codebook task new "Title" ./scope`
+4. Feed tasks to AI agents for implementation
 
-Example: `[`13`](codebook:SCIP.language_count)` displays "13" and resolves the template `SCIP.language_count` from the backend.
+**Key capabilities:**
+- `[`value`](codebook:server.template)` — Dynamic values from backend
+- `<exec lang="python">` — Execute Python via Jupyter
+- `<cicada endpoint="...">` — Live code exploration queries
+- `[text](file.md)` — Bidirectional links with auto-backlinks
+- Task generation from git diffs of spec changes
 
 ## Project Structure
 
 ```
 codebook/
-├── src/codebook/           # Main package (src layout)
-│   ├── __init__.py         # Package exports
-│   ├── parser.py           # Link parsing with regex
+├── src/codebook/           # Main package
+│   ├── cli.py              # Click CLI (run, init, render, watch, task, diff, etc.)
+│   ├── config.py           # YAML configuration (codebook.yml)
+│   ├── parser.py           # Link parsing (8 types: inline, url, span, div, exec, cicada, etc.)
+│   ├── renderer.py         # File rendering + backlink generation
 │   ├── client.py           # HTTP client with TTL caching
-│   ├── renderer.py         # File rendering logic
+│   ├── kernel.py           # Jupyter kernel for code execution
+│   ├── cicada.py           # Cicada API client for code exploration
 │   ├── watcher.py          # File watching with debouncing
-│   ├── differ.py           # Git diff generation
-│   └── cli.py              # Click-based CLI
-├── tests/                  # pytest test suite (112 tests)
-│   ├── conftest.py         # Shared fixtures
-│   ├── test_parser.py
-│   ├── test_client.py
-│   ├── test_renderer.py
-│   ├── test_watcher.py
-│   ├── test_differ.py
-│   └── test_cli.py
-├── examples/
-│   ├── mock_server.py      # Flask mock backend for testing
-│   └── example.md          # Sample markdown with codebook links
-├── pyproject.toml          # Project config (Black, Ruff, pytest)
-└── README.md               # User documentation
+│   └── differ.py           # Git diff generation
+├── tests/                  # pytest test suite
+├── codebook/               # Documentation (uses CodeBook itself)
+└── pyproject.toml          # Project config
 ```
 
 ## Key Components
@@ -63,9 +64,26 @@ codebook/
 - `DiffResult`: Dataclass with diff output and error handling
 - Uses `git show` and `difflib` for comparison
 
+### Kernel (`kernel.py`)
+- `CodeBookKernel`: Jupyter kernel wrapper for Python execution
+- Executes `<exec lang="python">` blocks
+- State persists between blocks in same session
+
+### Cicada (`cicada.py`)
+- `CicadaClient`: HTTP client for Cicada code exploration
+- Endpoints: `query`, `search-function`, `search-module`, `git-history`
+- `jq_query()`: Extract values from JSON responses
+
+### Config (`config.py`)
+- `CodeBookConfig`: YAML configuration dataclass
+- Loads from `codebook.yml` or searches parent directories
+- Configures watch_dir, tasks_dir, backend, cicada settings
+
 ### CLI (`cli.py`)
 - Built with Click
-- Commands: `render`, `watch`, `diff`, `show`, `health`, `clear-cache`
+- **Core:** `run` (main entry), `init`, `render`, `watch`
+- **Tasks:** `task new`, `task list`, `task delete`
+- **Utils:** `diff`, `show`, `health`, `clear-cache`
 - Global options: `--base-url`, `--timeout`, `--cache-ttl`, `--verbose`
 
 ## Backend API Contract
@@ -130,27 +148,26 @@ ruff check src/ tests/
 
 ## Design Decisions
 
-1. **src/ layout**: Proper package isolation, prevents import confusion
-2. **Dataclasses over dicts**: Type safety for results (`RenderResult`, `DiffResult`, `CacheEntry`)
-3. **Batch with fallback**: Try efficient batch endpoint, fall back to individual requests
-4. **Thread-safe debouncing**: Prevents race conditions in file watcher
-5. **Click for CLI**: Declarative, well-tested, good help generation
-6. **responses library for tests**: Clean HTTP mocking without server overhead
+1. **Spec Driven Development**: Docs are the source of truth; code implements specs
+2. **Standard markdown**: All syntax renders normally in any viewer (GitHub, VSCode, etc.)
+3. **Template preservation**: Template stays in URL, value updates in-place — re-render anytime
+4. **Dataclasses over dicts**: Type safety for results (`RenderResult`, `DiffResult`, `CacheEntry`)
+5. **Batch with fallback**: Try efficient batch endpoint, fall back to individual requests
+6. **Thread-safe debouncing**: Prevents race conditions in file watcher
 
 ## Dependencies
 
 **Runtime:**
-- `click>=8.1.0` - CLI framework
-- `watchdog>=3.0.0` - File system monitoring
-- `requests>=2.31.0` - HTTP client
+- `click` - CLI framework
+- `requests` - HTTP client
+- `watchdog` - File system monitoring
+- `pyyaml` - Configuration parsing
+- `jupyter-client` - Code execution
 
 **Development:**
-- `pytest>=7.4.0` - Testing
-- `pytest-cov>=4.1.0` - Coverage
-- `responses>=0.23.0` - HTTP mocking
-- `flask>=2.0.0` - Mock server
-- `black>=23.0.0` - Formatting
-- `ruff>=0.1.0` - Linting
+- `pytest`, `pytest-cov` - Testing
+- `responses` - HTTP mocking
+- `black`, `ruff` - Formatting/linting
 
 ## Environment Variables
 

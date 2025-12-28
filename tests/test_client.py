@@ -5,7 +5,7 @@ import time
 import pytest
 import responses
 
-from codebook.client import CodeBookClient, CacheEntry
+from codebook.client import CacheEntry, CodeBookClient
 
 
 class TestCodeBookClient:

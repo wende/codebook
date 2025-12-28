@@ -1132,7 +1132,7 @@ diff --git a/module2.py b/module2.py
         root_dir_name = git_repo.name
         expected_worktree_name = f"{root_dir_name}-theme_support"
         worktree_path = git_repo.parent / expected_worktree_name
-        
+
         assert worktree_path.exists(), f"Worktree directory not found at {worktree_path}"
 
         # Verify task file was created in worktree
@@ -1194,7 +1194,7 @@ diff --git a/module2.py b/module2.py
         root_dir_name = git_repo.name
         expected_worktree_name = f"{root_dir_name}-new_feature"
         worktree_path = git_repo.parent / expected_worktree_name
-        
+
         assert worktree_path.exists(), f"Worktree directory not found at {worktree_path}"
 
         # Verify untracked file was removed from source

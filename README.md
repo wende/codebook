@@ -1,6 +1,29 @@
-# CodeBook: Dynamic Markdown Documentation with Live Code References
+<div align="center">
 
-CodeBook is a markdown documentation system that embeds live code references using standard markdown link syntax. It maintains a single source of truth by storing templates in link URLs and dynamically rendering values inline.
+# CodeBook
+
+### Spec Driven Development for AI agents
+
+</div>
+
+Write specs in markdown. CodeBook keeps them in sync with your codebase. Turn changes into tasks for AI to implement.
+
+```
+┌──────────────────┐      ┌──────────────────┐      ┌──────────────────┐
+│  Write specs in  │      │ CodeBook renders │      │  Generate tasks  │
+│    .codebook/    │  →   │   live values    │  →   │   for AI agents  │
+└──────────────────┘      └──────────────────┘      └──────────────────┘
+```
+
+```bash
+codebook init          # Create config
+codebook run           # Watch & render
+codebook task new "Add auth" ./scope   # Create task from changes
+```
+
+**Dynamic values** · **Python execution** · **Code exploration** · **Bidirectional links** · **Task generation**
+
+---
 
 ## Features
 

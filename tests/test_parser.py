@@ -2,7 +2,7 @@
 
 import pytest
 
-from codebook.parser import CodeBookParser, CodeBookLink, Frontmatter
+from codebook.parser import CodeBookLink, CodeBookParser
 
 
 class TestCodeBookLink:

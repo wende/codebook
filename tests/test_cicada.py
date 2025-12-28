@@ -1,8 +1,7 @@
 """Tests for Cicada module."""
 
-import pytest
 
-from codebook.cicada import jq_query, format_json_value
+from codebook.cicada import format_json_value, jq_query
 
 
 class TestJqQuery:

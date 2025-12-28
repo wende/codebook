@@ -10,15 +10,15 @@ re-renders them when modifications are detected. Features:
 import logging
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
+from watchdog.events import FileCreatedEvent, FileModifiedEvent, FileSystemEventHandler
 from watchdog.observers import Observer
-from watchdog.events import FileSystemEventHandler, FileModifiedEvent, FileCreatedEvent
 
+from .config import CodeBookConfig
 from .parser import CodeBookParser
 from .renderer import CodeBookRenderer
-from .config import CodeBookConfig
 
 logger = logging.getLogger(__name__)
 

@@ -6,8 +6,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from codebook.renderer import CodeBookRenderer
 from codebook.differ import CodeBookDiffer, DiffResult
+from codebook.renderer import CodeBookRenderer
 
 
 class TestDiffResult:

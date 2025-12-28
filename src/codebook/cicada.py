@@ -10,8 +10,8 @@ from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urljoin
 
-from jqpy import jq as jqpy_jq
 import requests
+from jqpy import jq as jqpy_jq
 
 logger = logging.getLogger(__name__)
 
