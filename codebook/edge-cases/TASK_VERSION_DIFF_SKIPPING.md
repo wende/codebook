@@ -5,8 +5,8 @@
 When creating a task with `codebook task new`, files containing only version changes (like `codebook.version` updates) would create noise in the task output:
 
 ```diff
--Rendered by CodeBook [`v0.1.0-2-g5b0184e`](codebook:codebook.version)
-+Rendered by CodeBook [`v0.1.0-2-g5b0184e`](codebook:codebook.version)
+-Rendered by CodeBook [`v0.1.0-4-ga81e7a8`](codebook:codebook.version)
++Rendered by CodeBook [`v0.1.0-4-ga81e7a8`](codebook:codebook.version)
 ```
 
 These diffs provide no useful information for the task.
@@ -33,8 +33,8 @@ A diff is considered "version-only" if:
 --- a/README.md
 +++ b/README.md
 @@ -1,3 +1,3 @@
--Rendered by CodeBook [`v0.1.0-2-g5b0184e`](codebook:codebook.version)
-+Rendered by CodeBook [`v0.1.0-2-g5b0184e`](codebook:codebook.version)
+-Rendered by CodeBook [`v0.1.0-4-ga81e7a8`](codebook:codebook.version)
++Rendered by CodeBook [`v0.1.0-4-ga81e7a8`](codebook:codebook.version)
 ```
 
 This file would be **skipped** from the task.
@@ -50,8 +50,8 @@ This file would be **skipped** from the task.
 +## New Section
 +Added new content here.
 +
--Rendered by CodeBook [`v0.1.0-2-g5b0184e`](codebook:codebook.version)
-+Rendered by CodeBook [`v0.1.0-2-g5b0184e`](codebook:codebook.version)
+-Rendered by CodeBook [`v0.1.0-4-ga81e7a8`](codebook:codebook.version)
++Rendered by CodeBook [`v0.1.0-4-ga81e7a8`](codebook:codebook.version)
 ```
 
 This file would be **included** because it has non-version changes.
