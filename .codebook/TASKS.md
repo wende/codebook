@@ -77,6 +77,7 @@ Do not remove diff lines from the task file.
 
 By default, `task new` only includes files that have uncommitted changes (staged or unstaged).
 
+
 The title is converted to `UPPER_SNAKE_CASE` for the filename.
 
 ## Examples
@@ -122,9 +123,35 @@ diff --git a/path/to/file.md b/path/to/file.md
 - **Change tracking**: Document what changed for a specific feature
 - **Rollback reference**: Keep a record of previous content and diffs
 
+
+## Coverage
+
+To get the coverage of the tasks, run:
+```bash
+codebook task coverage [scope]
+```
+This will get all of the commits that have been made with the tasks by using git blame,
+and intersect them with the git blame of the project.
+You will get a percentage of coverage for each file in the project.
+If you provide a path glob, it will only show the coverage for the specific scope.
+
+```bash
+codebook task coverage --detailed
+```
+This will show a detailed report of the coverage for each file line, 
+showing the last task that covered the line or if the line is not covered.
+
+```bash
+codebook task coverage --short
+```
+This will show the score of the coverage for the project.
+The score is calculated by the percentage of covered lines divided by the total number of lines in the project. You can use it in the CI/CD to track the code documentation coverage of the project.
+
+E.g `95.4% (9847/10327 lines)`
+
 ---
 
-Rendered by CodeBook [`cc99d25`](codebook:codebook.version)
+Rendered by CodeBook [`45ea58b`](codebook:codebook.version)
 
 --- BACKLINKS ---
 [Tasks](README.md "codebook:backlink")

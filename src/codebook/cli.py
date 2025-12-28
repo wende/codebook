@@ -987,5 +987,300 @@ def task_delete(title: str | None, force: bool) -> None:
     click.echo(f"Deleted: {target_file}")
 
 
+@task.command("coverage")
+@click.argument(
+    "path_glob",
+    type=str,
+    default=".",
+    required=False,
+)
+@click.option(
+    "--detailed",
+    is_flag=True,
+    help="Show detailed line-by-line coverage report",
+)
+@click.option(
+    "--short",
+    is_flag=True,
+    help="Show only the coverage score",
+)
+def task_coverage(path_glob: str, detailed: bool, short: bool) -> None:
+    """Analyze task coverage for the project.
+
+    Shows what percentage of code lines are covered by task documentation.
+    Uses git blame to track which commits are associated with tasks.
+
+    PATH_GLOB is an optional path or glob pattern to limit analysis scope.
+
+    Example:
+        codebook task coverage
+        codebook task coverage src/
+        codebook task coverage --detailed
+        codebook task coverage --short
+    """
+    import re
+    from collections import defaultdict
+
+    cfg = CodeBookConfig.load()
+    tasks_dir = Path(cfg.tasks_dir)
+
+    if not tasks_dir.exists():
+        click.echo("No tasks directory found.", err=True)
+        return
+
+    # Get git root
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        git_root = Path(result.stdout.strip())
+    except Exception:
+        click.echo("Error: Not in a git repository", err=True)
+        return
+
+    # Extract file paths and commits from task files
+    def extract_commits_from_tasks() -> dict[str, str]:
+        """Extract commits associated with task files.
+
+        For each task, finds the files mentioned in diffs and gets the
+        commits that modified those files after the task was created.
+
+        Returns:
+            Dict mapping commit SHA (short) to task name
+        """
+        commit_to_task: dict[str, str] = {}
+        task_files = sorted(tasks_dir.glob("*.md"))
+
+        for task_file in task_files:
+            task_name = task_file.stem
+            content = task_file.read_text(encoding="utf-8")
+
+            # Extract file paths from diff headers
+            # Format: "diff --git a/path/to/file b/path/to/file"
+            file_paths = set()
+            for match in re.finditer(r"diff --git a/([^\s]+) b/([^\s]+)", content):
+                # Use the "b/" path (after changes)
+                file_path = match.group(2)
+                file_paths.add(file_path)
+
+            # Get task creation time from filename (YYYYMMDDHHMM format)
+            task_date = None
+            if len(task_name) >= 12 and task_name[:12].isdigit():
+                # Parse YYYYMMDDHHMM
+                try:
+                    from datetime import datetime
+                    date_str = task_name[:12]
+                    task_date = datetime.strptime(date_str, "%Y%m%d%H%M")
+                except Exception:
+                    pass
+
+            # For each file in the task, get commits made after task creation
+            for file_path in file_paths:
+                abs_file_path = git_root / file_path
+                if not abs_file_path.exists():
+                    continue
+
+                try:
+                    # Get all commits for this file
+                    cmd = ["git", "log", "--format=%H %ct", "--", str(file_path)]
+                    result = subprocess.run(
+                        cmd,
+                        cwd=git_root,
+                        capture_output=True,
+                        text=True,
+                    )
+
+                    if result.returncode == 0:
+                        for line in result.stdout.strip().split("\n"):
+                            if not line:
+                                continue
+                            parts = line.split()
+                            if len(parts) >= 2:
+                                commit_sha = parts[0][:7]  # Short SHA
+                                commit_time = int(parts[1])
+
+                                # If we have task date, only include commits after it
+                                if task_date:
+                                    from datetime import datetime
+                                    commit_dt = datetime.fromtimestamp(commit_time)
+                                    if commit_dt > task_date:
+                                        commit_to_task[commit_sha] = task_name
+                                else:
+                                    # No date info, include all commits for this file
+                                    commit_to_task[commit_sha] = task_name
+
+                except Exception:
+                    continue
+
+        return commit_to_task
+
+    click.echo("Extracting commits from task files...")
+    task_commits = extract_commits_from_tasks()
+
+    if not task_commits:
+        click.echo("No commits found in task files.", err=True)
+        click.echo("Tasks must contain git diffs with commit SHAs.", err=True)
+        return
+
+    click.echo(f"Found {len(task_commits)} commits in {len(set(task_commits.values()))} tasks\n")
+
+    # Get all files to analyze based on path glob
+    scope_path = Path(path_glob).resolve()
+    if scope_path.is_file():
+        files_to_analyze = [scope_path]
+    else:
+        # Get all tracked files in scope
+        try:
+            result = subprocess.run(
+                ["git", "ls-files", str(scope_path)],
+                cwd=git_root,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            rel_paths = result.stdout.strip().split("\n")
+            files_to_analyze = [git_root / p for p in rel_paths if p]
+        except Exception as e:
+            click.echo(f"Error listing files: {e}", err=True)
+            return
+
+    # Filter out task files themselves
+    tasks_dir_resolved = tasks_dir.resolve()
+    files_to_analyze = [
+        f for f in files_to_analyze
+        if f.exists() and not str(f.resolve()).startswith(str(tasks_dir_resolved))
+    ]
+
+    if not files_to_analyze:
+        click.echo("No files to analyze in scope.", err=True)
+        return
+
+    click.echo(f"Analyzing {len(files_to_analyze)} file(s)...\n")
+
+    # Analyze coverage per file
+    file_coverage: dict[Path, dict[str, any]] = {}
+
+    for file_path in files_to_analyze:
+        try:
+            # Get git blame for the file
+            result = subprocess.run(
+                ["git", "blame", "--line-porcelain", str(file_path)],
+                cwd=git_root,
+                capture_output=True,
+                text=True,
+            )
+
+            if result.returncode != 0:
+                continue
+
+            # Parse blame output
+            lines_data = []
+            current_commit = None
+
+            for line in result.stdout.split("\n"):
+                if line and line[0].isalnum() and len(line.split()) > 0:
+                    # Commit SHA line
+                    parts = line.split()
+                    if len(parts[0]) == 40:  # Full SHA
+                        current_commit = parts[0][:7]  # Use short SHA
+                elif line.startswith("\t") and current_commit:
+                    # Actual code line
+                    task_name = task_commits.get(current_commit)
+                    lines_data.append({
+                        "commit": current_commit,
+                        "task": task_name,
+                        "covered": task_name is not None,
+                    })
+
+            if lines_data:
+                total_lines = len(lines_data)
+                covered_lines = sum(1 for l in lines_data if l["covered"])
+                coverage_pct = (covered_lines / total_lines * 100) if total_lines > 0 else 0
+
+                file_coverage[file_path] = {
+                    "total": total_lines,
+                    "covered": covered_lines,
+                    "percentage": coverage_pct,
+                    "lines": lines_data,
+                }
+
+        except Exception as e:
+            click.echo(f"Warning: Could not analyze {file_path}: {e}", err=True)
+            continue
+
+    # Calculate overall coverage
+    total_lines = sum(fc["total"] for fc in file_coverage.values())
+    total_covered = sum(fc["covered"] for fc in file_coverage.values())
+    overall_pct = (total_covered / total_lines * 100) if total_lines > 0 else 0
+
+    # If --short flag, just print the score and exit
+    if short:
+        click.echo(f"{overall_pct:.1f}% ({total_covered}/{total_lines} lines)")
+        return
+
+    # Display summary
+    click.echo("=" * 60)
+    click.echo(f"Overall Coverage: {overall_pct:.1f}% ({total_covered}/{total_lines} lines)")
+    click.echo("=" * 60)
+    click.echo()
+
+    # Display per-file coverage
+    click.echo("File Coverage:")
+    click.echo("-" * 60)
+
+    # Sort by coverage percentage (lowest first)
+    sorted_files = sorted(
+        file_coverage.items(),
+        key=lambda x: x[1]["percentage"]
+    )
+
+    for file_path, data in sorted_files:
+        rel_path = file_path.relative_to(git_root)
+        pct = data["percentage"]
+        covered = data["covered"]
+        total = data["total"]
+
+        # Color code based on coverage
+        if pct >= 80:
+            status = "✓"
+        elif pct >= 50:
+            status = "○"
+        else:
+            status = "✗"
+
+        click.echo(f"{status} {pct:5.1f}% ({covered:4}/{total:4}) {rel_path}")
+
+    # Detailed report
+    if detailed:
+        click.echo()
+        click.echo("=" * 60)
+        click.echo("Detailed Line Coverage")
+        click.echo("=" * 60)
+
+        for file_path, data in sorted_files:
+            rel_path = file_path.relative_to(git_root)
+            click.echo()
+            click.echo(f"File: {rel_path}")
+            click.echo("-" * 60)
+
+            try:
+                file_lines = file_path.read_text(encoding="utf-8").split("\n")
+                for i, (line_data, line_content) in enumerate(zip(data["lines"], file_lines), 1):
+                    if line_data["covered"]:
+                        task_name = line_data["task"]
+                        click.echo(f"{i:4} [COVERED by {task_name}] {line_content[:60]}")
+                    else:
+                        commit = line_data["commit"]
+                        click.echo(f"{i:4} [NOT COVERED - {commit}] {line_content[:60]}")
+            except Exception:
+                click.echo("  (Could not read file contents)")
+
+    click.echo()
+    click.echo("=" * 60)
+
+
 if __name__ == "__main__":
     main()

@@ -671,3 +671,231 @@ class TestTaskCommands:
         assert "Select a task to delete:" in result.output
         assert task1.exists()
         assert not task2.exists()
+
+    def test_task_coverage_no_tasks(self, runner: CliRunner):
+        """Should error when no tasks directory exists."""
+        with runner.isolated_filesystem():
+            result = runner.invoke(main, ["task", "coverage"])
+            assert "No tasks directory found" in result.output
+
+    def test_task_coverage_not_git_repo(self, runner: CliRunner):
+        """Should error when not in a git repository."""
+        with runner.isolated_filesystem() as tmpdir:
+            tasks_dir = Path(tmpdir) / ".codebook" / "tasks"
+            tasks_dir.mkdir(parents=True)
+            (tasks_dir / "test.md").write_text("test")
+
+            result = runner.invoke(main, ["task", "coverage"])
+            assert "Not in a git repository" in result.output
+
+    def test_task_coverage_basic(self, git_repo: Path):
+        """Should calculate basic coverage statistics."""
+        runner = CliRunner()
+
+        # Create a source file and commit it
+        src_file = git_repo / "src.py"
+        src_file.write_text("def hello():\n    print('hello')\n")
+        subprocess.run(["git", "add", "src.py"], cwd=git_repo, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Add hello"],
+            cwd=git_repo,
+            capture_output=True,
+        )
+
+        # Get the commit SHA
+        result_sha = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=git_repo,
+            capture_output=True,
+            text=True,
+        )
+        commit_sha = result_sha.stdout.strip()
+
+        # Create a task file with the commit
+        tasks_dir = git_repo / ".codebook" / "tasks"
+        tasks_dir.mkdir(parents=True)
+        task_file = tasks_dir / "202412281530-ADD_HELLO.md"
+        task_content = f"""# Add Hello Function
+
+```diff
+diff --git a/src.py b/src.py
+index 0000000..{commit_sha}
+--- a/src.py
++++ b/src.py
+@@ -0,0 +1,2 @@
++def hello():
++    print('hello')
+```
+"""
+        task_file.write_text(task_content)
+
+        # Run coverage
+        result = runner.invoke(main, ["task", "coverage", str(git_repo)])
+
+        assert result.exit_code == 0
+        assert "Overall Coverage:" in result.output
+        assert "File Coverage:" in result.output
+        assert "src.py" in result.output
+
+    def test_task_coverage_detailed(self, git_repo: Path):
+        """Should show detailed line-by-line coverage."""
+        runner = CliRunner()
+
+        # Create a source file and commit it
+        src_file = git_repo / "test.py"
+        src_file.write_text("line1\nline2\n")
+        subprocess.run(["git", "add", "test.py"], cwd=git_repo, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Add test"],
+            cwd=git_repo,
+            capture_output=True,
+        )
+
+        # Get the commit SHA
+        result_sha = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=git_repo,
+            capture_output=True,
+            text=True,
+        )
+        commit_sha = result_sha.stdout.strip()
+
+        # Create a task file
+        tasks_dir = git_repo / ".codebook" / "tasks"
+        tasks_dir.mkdir(parents=True)
+        task_file = tasks_dir / "202412281530-TEST.md"
+        task_content = f"""# Test
+
+```diff
+diff --git a/test.py b/test.py
+index 0000000..{commit_sha}
+--- a/test.py
++++ b/test.py
+@@ -0,0 +1,2 @@
++line1
++line2
+```
+"""
+        task_file.write_text(task_content)
+
+        # Run coverage with detailed flag
+        result = runner.invoke(
+            main,
+            ["task", "coverage", str(git_repo), "--detailed"],
+        )
+
+        assert result.exit_code == 0
+        assert "Detailed Line Coverage" in result.output
+        assert "test.py" in result.output
+
+    def test_task_coverage_excludes_task_files(self, git_repo: Path):
+        """Should exclude task files from coverage analysis."""
+        runner = CliRunner()
+
+        # Create a source file and commit it
+        src_file = git_repo / "code.py"
+        src_file.write_text("print('test')\n")
+        subprocess.run(["git", "add", "code.py"], cwd=git_repo, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Add code"],
+            cwd=git_repo,
+            capture_output=True,
+        )
+
+        # Get the commit SHA
+        result_sha = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=git_repo,
+            capture_output=True,
+            text=True,
+        )
+        commit_sha = result_sha.stdout.strip()
+
+        # Create and commit a task file
+        tasks_dir = git_repo / ".codebook" / "tasks"
+        tasks_dir.mkdir(parents=True)
+        task_file = tasks_dir / "202412281530-TEST.md"
+        task_content = f"""# Test task
+
+```diff
+diff --git a/code.py b/code.py
+index 0000000..{commit_sha}
+--- a/code.py
++++ b/code.py
+@@ -0,0 +1 @@
++print('test')
+```
+"""
+        task_file.write_text(task_content)
+        subprocess.run(["git", "add", "-A"], cwd=git_repo, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Add task"],
+            cwd=git_repo,
+            capture_output=True,
+        )
+
+        # Run coverage
+        result = runner.invoke(main, ["task", "coverage", str(git_repo)])
+
+        # Should not analyze task files themselves
+        assert result.exit_code == 0
+        # Should include code.py but not the task file
+        assert "code.py" in result.output
+        assert "202412281530-TEST.md" not in result.output
+
+    def test_task_coverage_short_flag(self, git_repo: Path):
+        """Should show only coverage score with --short flag."""
+        runner = CliRunner()
+
+        # Create a source file and commit it
+        src_file = git_repo / "test.py"
+        src_file.write_text("print('hello')\n")
+        subprocess.run(["git", "add", "test.py"], cwd=git_repo, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Add test"],
+            cwd=git_repo,
+            capture_output=True,
+        )
+
+        # Get the commit SHA
+        result_sha = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=git_repo,
+            capture_output=True,
+            text=True,
+        )
+        commit_sha = result_sha.stdout.strip()
+
+        # Create a task file
+        tasks_dir = git_repo / ".codebook" / "tasks"
+        tasks_dir.mkdir(parents=True)
+        task_file = tasks_dir / "202412281530-TEST.md"
+        task_content = f"""# Test
+
+```diff
+diff --git a/test.py b/test.py
+index 0000000..{commit_sha}
+--- a/test.py
++++ b/test.py
+@@ -0,0 +1 @@
++print('hello')
+```
+"""
+        task_file.write_text(task_content)
+
+        # Run coverage with --short flag
+        result = runner.invoke(main, ["task", "coverage", str(git_repo), "--short"])
+
+        assert result.exit_code == 0
+        # Should only show the score line
+        lines = [line for line in result.output.split("\n") if line.strip()]
+        # Should have extraction message and score
+        assert any("Extracting commits" in line for line in lines)
+        assert any("Analyzing" in line for line in lines)
+        # Last non-empty line should be the score
+        score_line = [line for line in lines if "%" in line and "lines)" in line][-1]
+        assert "%" in score_line
+        assert "lines)" in score_line
+        # Should NOT have the detailed table
+        assert "File Coverage:" not in result.output
+        assert "====" not in result.output
