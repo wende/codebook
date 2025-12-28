@@ -12,10 +12,10 @@ These templates are resolved **locally by the CLI** - no server required.
 
 **Example:**
 ```markdown
-[`v0.1.0-1-g5c5d2aa`](codebook:codebook.version)
+[`v0.1.0-2-g5b0184e`](codebook:codebook.version)
 ```
 
-**Current version:** [`v0.1.0-1-g5c5d2aa`](codebook:codebook.version)
+**Current version:** [`v0.1.0-2-g5b0184e`](codebook:codebook.version)
 
 ## Server Templates
 

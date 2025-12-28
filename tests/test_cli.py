@@ -1555,6 +1555,82 @@ Some notes here
         assert "doc2.md" in content
         assert "doc3.md" in content
 
+    def test_task_update_no_args_finds_no_files(self, git_repo: Path):
+        """Should report no files when no modified/untracked task files exist."""
+        runner = CliRunner()
+
+        # Create tasks directory with no modified files
+        tasks_dir = git_repo / "codebook" / "tasks"
+        tasks_dir.mkdir(parents=True)
+
+        # Create codebook.yml
+        config_file = git_repo / "codebook.yml"
+        config_file.write_text("watch_dir: codebook\n")
+
+        result = runner.invoke(main, ["task", "update"])
+
+        assert result.exit_code == 0
+        assert "No modified or untracked task files" in result.output
+
+    def test_task_update_no_args_with_untracked_task_files(self, git_repo: Path):
+        """Should find and update untracked task files."""
+        runner = CliRunner()
+
+        # Create watch_dir with a doc file
+        watch_dir = git_repo / "codebook"
+        watch_dir.mkdir(parents=True)
+        doc1 = watch_dir / "doc1.md"
+        doc1.write_text("Original doc")
+
+        # Create tasks directory with an untracked task file
+        tasks_dir = watch_dir / "tasks"
+        tasks_dir.mkdir()
+        task_file = tasks_dir / "202412281530-TEST.md"
+        task_file.write_text("# Test Task\n\n")
+
+        # Create codebook.yml
+        config_file = git_repo / "codebook.yml"
+        config_file.write_text("watch_dir: codebook\n")
+
+        result = runner.invoke(main, ["task", "update"])
+
+        # Should find 1 untracked task file
+        assert "Found 1 task file(s) to update:" in result.output
+        assert "TEST.md" in result.output
+
+    def test_task_update_no_args_uses_default_scope(self, git_repo: Path):
+        """Should use watch_dir from config as default scope."""
+        runner = CliRunner()
+
+        # Create watch_dir with a modified doc file
+        watch_dir = git_repo / "codebook"
+        watch_dir.mkdir(parents=True)
+        doc1 = watch_dir / "doc1.md"
+        doc1.write_text("Original doc")
+        subprocess.run(["git", "add", "."], cwd=git_repo, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "Initial"], cwd=git_repo, capture_output=True)
+
+        # Create tasks directory with an untracked task file
+        tasks_dir = watch_dir / "tasks"
+        tasks_dir.mkdir()
+        task_file = tasks_dir / "202412281530-TEST.md"
+        task_file.write_text("# Test Task\n\n")
+
+        # Modify doc1
+        doc1.write_text("Modified doc")
+
+        # Create codebook.yml
+        config_file = git_repo / "codebook.yml"
+        config_file.write_text("watch_dir: codebook\n")
+
+        result = runner.invoke(main, ["task", "update"])
+
+        # Should find and update the task file
+        assert "Found 1 task file(s) to update:" in result.output
+        # Should pick up the modified doc
+        content = task_file.read_text()
+        assert "doc1.md" in content or "Updated task" in result.output
+
 
 class TestAICommands:
     """Tests for AI helper commands."""
@@ -1634,12 +1710,34 @@ class TestAICommands:
             assert result.exit_code != 0
             assert "Invalid value" in result.output or "invalid_agent" in result.output
 
-    def test_ai_review_requires_path(self, runner: CliRunner):
-        """Should require path argument."""
-        result = runner.invoke(main, ["ai", "review", "claude"])
+    def test_ai_review_no_path_finds_no_files(self, runner: CliRunner):
+        """Should report no files when no modified/untracked files exist."""
+        with runner.isolated_filesystem() as tmpdir:
+            # Create tasks directory with no modified files
+            tasks_dir = Path(tmpdir) / "codebook" / "tasks"
+            tasks_dir.mkdir(parents=True)
 
-        assert result.exit_code != 0
-        assert "Missing argument" in result.output or "PATH" in result.output
+            # Create codebook.yml
+            config_file = Path(tmpdir) / "codebook.yml"
+            config_file.write_text("watch_dir: codebook\n")
+
+            # Initialize git repo and commit the task file
+            subprocess.run(["git", "init"], cwd=tmpdir, capture_output=True)
+            subprocess.run(
+                ["git", "config", "user.email", "test@test.com"],
+                cwd=tmpdir,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["git", "config", "user.name", "Test"],
+                cwd=tmpdir,
+                capture_output=True,
+            )
+
+            result = runner.invoke(main, ["ai", "review", "claude"])
+
+            assert result.exit_code == 0
+            assert "No modified or untracked" in result.output
 
     def test_ai_review_path_must_exist(self, runner: CliRunner):
         """Should require path to exist."""
@@ -1906,6 +2004,172 @@ class TestAICommands:
 
                 assert result.exit_code == 1
                 assert "Error running agent:" in result.output
+
+    def test_ai_review_no_path_with_untracked_files(self, runner: CliRunner):
+        """Should find and review untracked markdown files in tasks directory."""
+        with runner.isolated_filesystem() as tmpdir:
+            # Create tasks directory with untracked files
+            tasks_dir = Path(tmpdir) / "codebook" / "tasks"
+            tasks_dir.mkdir(parents=True)
+
+            task1 = tasks_dir / "202512281502-task1.md"
+            task1.write_text("Task 1 content")
+
+            task2 = tasks_dir / "202512281503-task2.md"
+            task2.write_text("Task 2 content")
+
+            # Create codebook.yml
+            config_file = Path(tmpdir) / "codebook.yml"
+            config_file.write_text("watch_dir: codebook\n")
+
+            # Initialize git repo (files are untracked)
+            subprocess.run(["git", "init"], cwd=tmpdir, capture_output=True)
+            subprocess.run(
+                ["git", "config", "user.email", "test@test.com"],
+                cwd=tmpdir,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["git", "config", "user.name", "Test"],
+                cwd=tmpdir,
+                capture_output=True,
+            )
+
+            # Mock only _run_agent_review to avoid affecting git commands
+            with patch("codebook.cli._run_agent_review") as mock_review:
+                mock_review.return_value = 0
+
+                result = runner.invoke(main, ["ai", "review", "claude"])
+
+                # Should have found 2 files
+                assert "Found 2 task file(s) to review:" in result.output
+                assert "task1.md" in result.output
+                assert "task2.md" in result.output
+                # Should have called review for each file
+                assert mock_review.call_count == 2
+
+    def test_ai_review_no_path_with_modified_files(self, runner: CliRunner):
+        """Should find and review modified markdown files in tasks directory."""
+        with runner.isolated_filesystem() as tmpdir:
+            # Create tasks directory
+            tasks_dir = Path(tmpdir) / "codebook" / "tasks"
+            tasks_dir.mkdir(parents=True)
+
+            task1 = tasks_dir / "202512281502-task1.md"
+            task1.write_text("Task 1 original")
+
+            # Create codebook.yml
+            config_file = Path(tmpdir) / "codebook.yml"
+            config_file.write_text("watch_dir: codebook\n")
+
+            # Initialize git repo and commit
+            subprocess.run(["git", "init"], cwd=tmpdir, capture_output=True)
+            subprocess.run(
+                ["git", "config", "user.email", "test@test.com"],
+                cwd=tmpdir,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["git", "config", "user.name", "Test"],
+                cwd=tmpdir,
+                capture_output=True,
+            )
+            subprocess.run(["git", "add", "."], cwd=tmpdir, capture_output=True)
+            subprocess.run(
+                ["git", "commit", "-m", "Initial"],
+                cwd=tmpdir,
+                capture_output=True,
+            )
+
+            # Modify the file
+            task1.write_text("Task 1 modified")
+
+            # Mock only _run_agent_review to avoid affecting git commands
+            with patch("codebook.cli._run_agent_review") as mock_review:
+                mock_review.return_value = 0
+
+                result = runner.invoke(main, ["ai", "review", "claude"])
+
+                # Should have found 1 modified file
+                assert "Found 1 task file(s) to review:" in result.output
+                assert "task1.md" in result.output
+                assert mock_review.call_count == 1
+
+    def test_ai_review_no_path_reviews_all_files(self, runner: CliRunner):
+        """Should review all found task files sequentially."""
+        with runner.isolated_filesystem() as tmpdir:
+            # Create tasks directory with untracked files
+            tasks_dir = Path(tmpdir) / "codebook" / "tasks"
+            tasks_dir.mkdir(parents=True)
+
+            task1 = tasks_dir / "202512281502-task1.md"
+            task1.write_text("Task 1")
+            task2 = tasks_dir / "202512281503-task2.md"
+            task2.write_text("Task 2")
+
+            # Create codebook.yml
+            config_file = Path(tmpdir) / "codebook.yml"
+            config_file.write_text("watch_dir: codebook\n")
+
+            # Initialize git repo
+            subprocess.run(["git", "init"], cwd=tmpdir, capture_output=True)
+            subprocess.run(
+                ["git", "config", "user.email", "test@test.com"],
+                cwd=tmpdir,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["git", "config", "user.name", "Test"],
+                cwd=tmpdir,
+                capture_output=True,
+            )
+
+            # Mock only _run_agent_review to avoid affecting git commands
+            with patch("codebook.cli._run_agent_review") as mock_review:
+                mock_review.return_value = 0
+
+                runner.invoke(main, ["ai", "review", "claude"])
+
+                # Should have called _run_agent_review for each file
+                assert mock_review.call_count == 2
+
+    def test_ai_review_no_path_propagates_failure(self, runner: CliRunner):
+        """Should propagate non-zero exit code when any review fails."""
+        with runner.isolated_filesystem() as tmpdir:
+            # Create tasks directory with untracked files
+            tasks_dir = Path(tmpdir) / "codebook" / "tasks"
+            tasks_dir.mkdir(parents=True)
+
+            task1 = tasks_dir / "task1.md"
+            task1.write_text("Task 1")
+            task2 = tasks_dir / "task2.md"
+            task2.write_text("Task 2")
+
+            # Create codebook.yml
+            config_file = Path(tmpdir) / "codebook.yml"
+            config_file.write_text("watch_dir: codebook\n")
+
+            # Initialize git repo
+            subprocess.run(["git", "init"], cwd=tmpdir, capture_output=True)
+            subprocess.run(
+                ["git", "config", "user.email", "test@test.com"],
+                cwd=tmpdir,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["git", "config", "user.name", "Test"],
+                cwd=tmpdir,
+                capture_output=True,
+            )
+
+            # Mock only _run_agent_review to avoid affecting git commands
+            with patch("codebook.cli._run_agent_review") as mock_review:
+                # First call succeeds, second fails
+                mock_review.side_effect = [0, 1]
+
+                result = runner.invoke(main, ["ai", "review", "claude"])
+
+                assert result.exit_code == 1
 
 
 class TestBuildAgentCommand:

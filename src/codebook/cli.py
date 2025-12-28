@@ -1010,18 +1010,15 @@ def task_new(
     click.echo(f"Created task: {task_file} ({file_count} file(s))")
 
 
-@task.command("update")
-@click.argument("task_file", type=click.Path(exists=True, path_type=Path))
-@click.argument("scope", type=click.Path(exists=True, path_type=Path))
-@click.pass_context
-def task_update(ctx: click.Context, task_file: Path, scope: Path) -> None:
-    """Update a task file with new diffs to documentation files.
+def _update_single_task(task_file: Path, scope: Path) -> bool:
+    """Update a single task file with new diffs from documentation files.
 
-    Updates existing diffs for files already in the task and appends
-    new diffs for modified files not yet included.
+    Args:
+        task_file: Path to the task file to update
+        scope: Path to the scope directory or file
 
-    Example:
-        codebook task update ./tasks/202412281530-FEATURE.md ./docs
+    Returns:
+        True if the task was updated, False otherwise
     """
     import re
 
@@ -1117,7 +1114,7 @@ def task_update(ctx: click.Context, task_file: Path, scope: Path) -> None:
         git_root = Path(result.stdout.strip())
     except Exception:
         click.echo("Error: Not in a git repository", err=True)
-        return
+        return False
 
     # Separate files into new (to add) and existing (to update)
     files_to_add = []
@@ -1135,8 +1132,8 @@ def task_update(ctx: click.Context, task_file: Path, scope: Path) -> None:
             continue
 
     if not files_to_add and not files_to_update:
-        click.echo("No modified documentation files to update", err=True)
-        return
+        click.echo(f"No modified documentation files to update for {task_file}", err=True)
+        return False
 
     # Update existing file diffs in place
     updated_content = task_content
@@ -1196,8 +1193,8 @@ def task_update(ctx: click.Context, task_file: Path, scope: Path) -> None:
         new_diffs.append("</diff>\n\n")
 
     if added_count == 0 and updated_count == 0:
-        click.echo("No diffs to update", err=True)
-        return
+        click.echo(f"No diffs to update for {task_file}", err=True)
+        return False
 
     # Append new files before footer sections
     if new_diffs:
@@ -1225,6 +1222,65 @@ def task_update(ctx: click.Context, task_file: Path, scope: Path) -> None:
     if added_count > 0:
         parts.append(f"+{added_count} added")
     click.echo(f"Updated task: {task_file} ({', '.join(parts)})")
+    return True
+
+
+@task.command("update")
+@click.argument("task_file", type=click.Path(exists=True, path_type=Path), required=False)
+@click.argument("scope", type=click.Path(exists=True, path_type=Path), required=False)
+@click.pass_context
+def task_update(ctx: click.Context, task_file: Path | None, scope: Path | None) -> None:
+    """Update a task file with new diffs to documentation files.
+
+    Updates existing diffs for files already in the task and appends
+    new diffs for modified files not yet included.
+
+    TASK_FILE is the path to the task file to update. If not provided,
+    all modified and untracked task files in the tasks directory will be updated.
+
+    SCOPE is the directory to look for modified documentation files.
+    If not provided, uses the watch_dir from codebook.yml configuration.
+
+    Example:
+        codebook task update ./tasks/202412281530-FEATURE.md ./docs
+        codebook task update  # Updates all modified/untracked task files
+    """
+    cfg = CodeBookConfig.load()
+
+    # Default scope to watch_dir from config
+    if scope is None:
+        scope = Path(cfg.watch_dir)
+        if not scope.exists():
+            click.echo(f"Error: Default scope directory does not exist: {scope}", err=True)
+            sys.exit(1)
+
+    # If no task file provided, find all modified/untracked task files
+    if task_file is None:
+        tasks_dir = Path(cfg.tasks_dir)
+        task_files = _get_modified_task_files(tasks_dir)
+
+        if not task_files:
+            click.echo(f"No modified or untracked task files found in {tasks_dir}")
+            sys.exit(0)
+
+        click.echo(f"Found {len(task_files)} task file(s) to update:")
+        for f in task_files:
+            click.echo(f"  - {f}")
+        click.echo()
+
+        # Update each task file
+        success_count = 0
+        for tf in task_files:
+            if _update_single_task(tf, scope):
+                success_count += 1
+
+        if success_count == 0:
+            click.echo("No tasks were updated", err=True)
+            sys.exit(1)
+    else:
+        # Single task file update
+        if not _update_single_task(task_file, scope):
+            sys.exit(1)
 
 
 @task.command("list")
@@ -1937,8 +1993,12 @@ def ai_help() -> None:
     click.echo("Usage:")
     click.echo("  codebook ai review [agent] [path] -- [agent_args]")
     click.echo()
+    click.echo("When no path is provided, all modified and untracked markdown files")
+    click.echo("in the tasks directory are reviewed.")
+    click.echo()
     click.echo("Examples:")
     click.echo("  codebook ai review claude ./codebook/tasks/202512281502-TITLE.md")
+    click.echo("  codebook ai review claude  # Reviews all modified/untracked task files")
     click.echo(
         "  codebook ai review gemini ./codebook/tasks/202512281502-TITLE.md -- --model gemini-pro"
     )
@@ -1946,31 +2006,77 @@ def ai_help() -> None:
     click.echo("The review prompt can be customized in codebook.yml under 'ai.review_prompt'.")
 
 
-@ai.command("review")
-@click.argument("agent", type=click.Choice(SUPPORTED_AGENTS))
-@click.argument("path", type=click.Path(exists=True, dir_okay=False, path_type=Path))
-@click.argument("agent_args", nargs=-1, type=click.UNPROCESSED)
-@click.pass_context
-def ai_review(ctx: click.Context, agent: str, path: Path, agent_args: tuple[str, ...]) -> None:
-    """Review a task with an AI agent.
+def _get_modified_task_files(tasks_dir: Path) -> list[Path]:
+    """Get modified and untracked markdown files in the tasks directory.
 
-    Starts the specified AI agent with a review prompt for the given task file.
-    The prompt can be customized in codebook.yml under 'ai.review_prompt'.
+    Uses git to find:
+    - Modified files (staged and unstaged)
+    - Untracked files
 
-    AGENT is one of: claude, codex, gemini, opencode, kimi
+    Args:
+        tasks_dir: Path to the tasks directory
 
-    PATH is the path to the task file to review.
-
-    AGENT_ARGS are additional arguments passed to the agent command.
-    Use -- to separate them from codebook arguments.
-
-    Example:
-        codebook ai review claude ./codebook/tasks/202512281502-TITLE.md
-        codebook ai review gemini ./codebook/tasks/202512281502-TITLE.md -- --model gemini-pro
+    Returns:
+        List of paths to modified/untracked markdown files
     """
-    # Load config for review prompt
-    cfg = CodeBookConfig.load()
+    if not tasks_dir.exists():
+        return []
 
+    task_files: list[Path] = []
+
+    try:
+        # Get modified files (staged and unstaged)
+        modified_result = subprocess.run(
+            ["git", "diff", "--name-only", "HEAD", "--", str(tasks_dir)],
+            capture_output=True,
+            text=True,
+        )
+        if modified_result.returncode == 0:
+            for line in modified_result.stdout.strip().split("\n"):
+                if line and line.endswith(".md"):
+                    path = Path(line)
+                    if path.exists():
+                        task_files.append(path)
+
+        # Get untracked files
+        untracked_result = subprocess.run(
+            ["git", "ls-files", "--others", "--exclude-standard", "--", str(tasks_dir)],
+            capture_output=True,
+            text=True,
+        )
+        if untracked_result.returncode == 0:
+            for line in untracked_result.stdout.strip().split("\n"):
+                if line and line.endswith(".md"):
+                    path = Path(line)
+                    if path.exists() and path not in task_files:
+                        task_files.append(path)
+
+    except FileNotFoundError:
+        # Git not available, return empty list
+        pass
+
+    return sorted(task_files)
+
+
+def _run_agent_review(
+    ctx: click.Context,
+    agent: str,
+    path: Path,
+    agent_args: tuple[str, ...],
+    cfg: CodeBookConfig,
+) -> int:
+    """Run a single agent review on a task file.
+
+    Args:
+        ctx: Click context
+        agent: Agent name
+        path: Path to task file
+        agent_args: Additional agent arguments
+        cfg: CodeBook configuration
+
+    Returns:
+        Exit code from the agent
+    """
     # Build the prompt by replacing [TASK_FILE] with the actual path
     prompt = cfg.ai.review_prompt.replace("[TASK_FILE]", str(path.resolve()))
 
@@ -1979,7 +2085,7 @@ def ai_review(ctx: click.Context, agent: str, path: Path, agent_args: tuple[str,
 
     if agent_cmd is None:
         click.echo(f"Error: Agent '{agent}' is not properly configured", err=True)
-        sys.exit(1)
+        return 1
 
     click.echo(f"Starting {agent} to review {path}...")
     if ctx.obj.get("verbose"):
@@ -1991,13 +2097,72 @@ def ai_review(ctx: click.Context, agent: str, path: Path, agent_args: tuple[str,
         # The agent name is constrained to SUPPORTED_AGENTS via click.Choice, and the prompt/args
         # come from user-controlled config and CLI input, which is expected behavior.
         result = subprocess.run(agent_cmd)
-        sys.exit(result.returncode)
+        return result.returncode
     except FileNotFoundError:
         click.echo(f"Error: Agent '{agent}' not found. Is it installed?", err=True)
-        sys.exit(1)
+        return 1
     except Exception as e:
         click.echo(f"Error running agent: {e}", err=True)
-        sys.exit(1)
+        return 1
+
+
+@ai.command("review")
+@click.argument("agent", type=click.Choice(SUPPORTED_AGENTS))
+@click.argument(
+    "path", type=click.Path(exists=True, dir_okay=False, path_type=Path), required=False
+)
+@click.argument("agent_args", nargs=-1, type=click.UNPROCESSED)
+@click.pass_context
+def ai_review(
+    ctx: click.Context, agent: str, path: Path | None, agent_args: tuple[str, ...]
+) -> None:
+    """Review a task with an AI agent.
+
+    Starts the specified AI agent with a review prompt for the given task file.
+    The prompt can be customized in codebook.yml under 'ai.review_prompt'.
+
+    AGENT is one of: claude, codex, gemini, opencode, kimi
+
+    PATH is the path to the task file to review. If not provided, all modified
+    and untracked markdown files in the tasks directory will be reviewed.
+
+    AGENT_ARGS are additional arguments passed to the agent command.
+    Use -- to separate them from codebook arguments.
+
+    Example:
+        codebook ai review claude ./codebook/tasks/202512281502-TITLE.md
+        codebook ai review claude  # Reviews all modified/untracked task files
+        codebook ai review gemini ./codebook/tasks/202512281502-TITLE.md -- --model gemini-pro
+    """
+    # Load config for review prompt
+    cfg = CodeBookConfig.load()
+
+    # If no path provided, find all modified/untracked task files
+    if path is None:
+        tasks_dir = Path(cfg.tasks_dir)
+        task_files = _get_modified_task_files(tasks_dir)
+
+        if not task_files:
+            click.echo(f"No modified or untracked markdown files found in {tasks_dir}")
+            sys.exit(0)
+
+        click.echo(f"Found {len(task_files)} task file(s) to review:")
+        for f in task_files:
+            click.echo(f"  - {f}")
+        click.echo()
+
+        # Review each file
+        exit_code = 0
+        for task_file in task_files:
+            result = _run_agent_review(ctx, agent, task_file, agent_args, cfg)
+            if result != 0:
+                exit_code = result
+
+        sys.exit(exit_code)
+    else:
+        # Single file review
+        exit_code = _run_agent_review(ctx, agent, path, agent_args, cfg)
+        sys.exit(exit_code)
 
 
 # Agent command configurations: maps agent name to (executable, prompt_flag or None)

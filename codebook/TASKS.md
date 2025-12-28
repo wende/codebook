@@ -13,9 +13,13 @@ This creates `.codebook/tasks/YYYYMMDDHHMM-TITLE_OF_THE_TASK.md` containing git 
 In case documentation files were modified during the task execution you can run
 ```bash
 codebook task update ./PATH_TO_THE_TASK_FILE ./scope
-
 ```
 This will update the task file with the new diffs to the documentation files in the scope.
+
+When no arguments are provided, all modified and untracked task files in the tasks directory are updated using the watch_dir from configuration as the default scope:
+```bash
+codebook task update
+```
 
 ## Listing Tasks
 

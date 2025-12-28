@@ -37,5 +37,11 @@ This is the task file: [TASK_FILE]
 codebook ai review claude ./codebook/tasks/YYYYMMDDHHMM-TITLE.md
 ```
 
+
+When no path is provided, all modified and untracked markdown files in the tasks directory are reviewed.
+```bash
+codebook ai review claude
+```
+
 --- BACKLINKS ---
 [README](README.md "codebook:backlink")
