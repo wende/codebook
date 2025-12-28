@@ -29,6 +29,7 @@ codebook run
 - **[Configuration](CONFIGURATION.md)** - YAML config reference
 - **[Frontmatter](FRONTMATTER.md)** - YAML frontmatter support
 - **[Tasks](TASKS.md)** - Task management
+- **[AI Helpers](AI_HELPERS.md)** - AI helpers for task review
 - **[Edge Cases](edge-cases/README.md)** - Implementation details and behaviors
 
 ## CLI Commands
@@ -54,7 +55,7 @@ codebook run
 
 | Metric    | Value                               |
 | --------- | ----------------------------------- |
-| Version   | [`026a01a`](codebook:codebook.version)  |
+| Version   | [`d374531`](codebook:codebook.version)  |
 
 ## Documentation Files
 
@@ -62,4 +63,4 @@ codebook run
 
 ---
  
-Rendered by CodeBook [`026a01a`](codebook:codebook.version)
+Rendered by CodeBook [`d374531`](codebook:codebook.version)

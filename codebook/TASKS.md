@@ -10,6 +10,13 @@ codebook task new "Title of the task" ./scope
 
 This creates `.codebook/tasks/YYYYMMDDHHMM-TITLE_OF_THE_TASK.md` containing git diffs for each modified file.
 
+In case documentation files were modified during the task execution you can run
+```bash
+codebook task update ./PATH_TO_THE_TASK_FILE ./scope
+
+```
+This will update the task file with the new diffs to the documentation files in the scope.
+
 ## Listing Tasks
 
 View all existing tasks:
@@ -174,7 +181,7 @@ The stats are calculated for each task by
  - the number of lines covered by the task.
  - features modified by the task 
 
-Rendered by CodeBook [`026a01a`](codebook:codebook.version)
+Rendered by CodeBook [`d374531`](codebook:codebook.version)
 
 --- BACKLINKS ---
 [Tasks](README.md "codebook:backlink")

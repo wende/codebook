@@ -201,3 +201,4 @@ ruff check src/ tests/
 
   Use Grep/Glob/Read only for non-Elixir files or when you already have exact paths/strings.
 </cicada>
+- When addressing comments using make pr-comments remember to add the word 'addressed' in the commit message
