@@ -5,6 +5,7 @@
 ### Spec Driven Development for AI agents
 
 [![CodeBook Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/wende/3a91e8802bc5f23a8cc7ac9269d11035/raw/codebook-coverage.json)](https://github.com/wende/codebook)
+[![codecov](https://codecov.io/gh/wende/codebook/graph/badge.svg)](https://codecov.io/gh/wende/codebook)
 
 </div>
 

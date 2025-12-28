@@ -24,12 +24,14 @@ def get_codebook_version() -> str:
     """Get the current codebook version from git.
 
     Returns:
-        Version string in format 'tag (short_sha)' or just 'sha' if no tag.
+        Version string from git describe (tag, tag-N-gSHA, or SHA if no tags).
     """
     try:
-        # Get the short commit SHA
+        # Use git describe to get tag-based version
+        # --tags: use any tag, not just annotated
+        # --always: fall back to SHA if no tags exist
         result = subprocess.run(
-            ["git", "rev-parse", "--short", "HEAD"],
+            ["git", "describe", "--tags", "--always"],
             capture_output=True,
             text=True,
             cwd=Path(__file__).parent,
@@ -37,22 +39,8 @@ def get_codebook_version() -> str:
         if result.returncode != 0:
             return "dev"
 
-        sha = result.stdout.strip()
-        if not sha:
-            return "dev"
-
-        # Try to get a tag pointing to this commit
-        tag_result = subprocess.run(
-            ["git", "describe", "--tags", "--exact-match", "HEAD"],
-            capture_output=True,
-            text=True,
-            cwd=Path(__file__).parent,
-        )
-        tag = tag_result.stdout.strip() if tag_result.returncode == 0 else ""
-
-        if tag:
-            return f"{tag} ({sha})"
-        return sha
+        version = result.stdout.strip()
+        return version if version else "dev"
     except Exception:
         return "dev"
 
