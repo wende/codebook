@@ -55,7 +55,7 @@ now = datetime.now()
 print(f"Generated: {now.strftime('%Y-%m-%d %H:%M')}")
 </exec>
 <output>
-Generated: 2025-12-28 17:56
+Generated: 2025-12-28 18:08
 </output>
 
 ## Example: Importing Project Modules
@@ -154,11 +154,5 @@ ZeroDivisionError: division by zero
 </output>
 ```
 
-
-
----
-
-Rendered by CodeBook [`dev`](codebook:codebook.version)
-
 --- BACKLINKS ---
-[Code Execution](README.md "codebook:backlink")
+[README](README.md "codebook:backlink")

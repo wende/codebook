@@ -81,4 +81,4 @@ disable: backlinks
 - Frontmatter that doesn't start at line 1 is not recognized
 
 --- BACKLINKS ---
-[Frontmatter](README.md "codebook:backlink")
+[README](README.md "codebook:backlink")

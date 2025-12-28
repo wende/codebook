@@ -217,4 +217,4 @@ tests/test_cicada.py:8
 </cicada>
 
 --- BACKLINKS ---
-[Cicada Integration](README.md "codebook:backlink")
+[README](README.md "codebook:backlink")

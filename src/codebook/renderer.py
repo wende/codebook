@@ -10,6 +10,7 @@ Cicada API queries for code exploration.
 from __future__ import annotations
 
 import logging
+import re
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -216,6 +217,10 @@ class CodeBookRenderer:
             updated = self._update_backlinks(path, markdown_links)
             result.backlinks_updated = updated
 
+        # Clean up orphaned backlinks in this file (unless disabled or dry run)
+        if not dry_run and not frontmatter.backlinks_disabled:
+            self._cleanup_orphaned_backlinks(path)
+
         result.changed = new_content != content
 
         if result.changed and not dry_run:
@@ -388,8 +393,6 @@ class CodeBookRenderer:
         Returns:
             Position of the BACKLINKS marker, or None if not found
         """
-        import re
-
         backlinks_marker = "--- BACKLINKS ---"
 
         # Find all fenced code block ranges (``` or ~~~)
@@ -430,7 +433,8 @@ class CodeBookRenderer:
 
         for link in markdown_links:
             target_url = link.value  # URL to the target file
-            link_text = link.extra  # Text to display in the backlink
+            # Use source file name (without extension) as the backlink text
+            link_text = source_path.stem
 
             # Resolve target path relative to source file's directory
             if target_url.startswith("/"):
@@ -495,20 +499,29 @@ class CodeBookRenderer:
                 # Check if a backlink from this source already exists
                 # Look for any backlink pointing to our source file
                 source_name = source_path.name
-                if f'({backlink_url} "codebook:backlink")' in existing_section:
-                    # Backlink already exists, skip
-                    continue
-                elif f'{source_name} "codebook:backlink")' in existing_section:
-                    # Backlink to same file exists (possibly different path), skip
-                    continue
 
-                # Add new backlink after the marker
-                new_content = (
-                    target_content[:section_start]
-                    + "\n"
-                    + backlink_entry
-                    + target_content[section_start:]
+                # Pattern to match any backlink pointing to this source file
+                backlink_pattern = (
+                    rf'\[[^\]]*\]\([^)]*{re.escape(source_name)} "codebook:backlink"\)'
                 )
+                existing_match = re.search(backlink_pattern, existing_section)
+
+                if existing_match:
+                    existing_backlink = existing_match.group(0)
+                    if existing_backlink == backlink_entry:
+                        # Exact match, skip
+                        continue
+                    # Replace existing backlink with new format
+                    new_section = existing_section.replace(existing_backlink, backlink_entry)
+                    new_content = target_content[:section_start] + new_section
+                else:
+                    # Add new backlink after the marker
+                    new_content = (
+                        target_content[:section_start]
+                        + "\n"
+                        + backlink_entry
+                        + target_content[section_start:]
+                    )
             else:
                 # Add BACKLINKS section at the end of the file
                 new_content = (
@@ -529,6 +542,101 @@ class CodeBookRenderer:
                 logger.error(f"Failed to write backlink to {target_path}: {e}")
 
         return updated
+
+    def _cleanup_orphaned_backlinks(self, file_path: Path) -> int:
+        """Remove backlinks in file that no longer have valid sources.
+
+        For each backlink in the file's BACKLINKS section, check if the source
+        file actually links back to this file. If not, remove the backlink.
+
+        Args:
+            file_path: Path to the file to clean up
+
+        Returns:
+            Number of orphaned backlinks removed
+        """
+        try:
+            content = file_path.read_text(encoding="utf-8")
+        except OSError:
+            return 0
+
+        backlinks_marker = "--- BACKLINKS ---"
+        marker_pos = self._find_real_backlinks_section(content)
+
+        if marker_pos is None:
+            return 0
+
+        section_start = marker_pos + len(backlinks_marker)
+        backlinks_section = content[section_start:]
+        content_before = content[:section_start]
+
+        # Find all backlinks in the section
+        backlink_pattern = r'\[([^\]]*)\]\(([^)]+) "codebook:backlink"\)'
+        matches = list(re.finditer(backlink_pattern, backlinks_section))
+
+        if not matches:
+            return 0
+
+        removed = 0
+        valid_backlinks = []
+
+        for match in matches:
+            backlink_url = match.group(2)  # The URL (source file path)
+
+            # Resolve source path relative to this file
+            source_path = (file_path.parent / backlink_url).resolve()
+
+            if not source_path.exists():
+                # Source file doesn't exist, remove backlink
+                logger.info(
+                    f"Removing orphaned backlink from {file_path}: source {source_path} not found"
+                )
+                removed += 1
+                continue
+
+            # Check if source file actually links to this file
+            try:
+                source_content = source_path.read_text(encoding="utf-8")
+                source_links = list(self.parser.find_links(source_content))
+                source_markdown_links = [
+                    link for link in source_links if link.link_type == LinkType.MARKDOWN_LINK
+                ]
+
+                # Check if any link in source points to this file
+                links_to_this_file = False
+                for link in source_markdown_links:
+                    target_url = link.value
+                    if target_url.startswith("/"):
+                        # Absolute path - resolve from git root
+                        continue  # Skip complex resolution for now
+                    target_path = (source_path.parent / target_url).resolve()
+                    if target_path == file_path.resolve():
+                        links_to_this_file = True
+                        break
+
+                if links_to_this_file:
+                    valid_backlinks.append(match.group(0))
+                else:
+                    logger.info(
+                        f"Removing orphaned backlink from {file_path}: {source_path} no longer links here"
+                    )
+                    removed += 1
+            except OSError:
+                # Can't read source, keep the backlink
+                valid_backlinks.append(match.group(0))
+
+        if removed > 0:
+            # Rebuild backlinks section
+            new_section = "\n" + "\n".join(valid_backlinks) + "\n" if valid_backlinks else "\n"
+            new_content = content_before + new_section
+
+            try:
+                file_path.write_text(new_content, encoding="utf-8")
+            except OSError as e:
+                logger.error(f"Failed to write cleaned backlinks to {file_path}: {e}")
+                return 0
+
+        return removed
 
     def _is_in_tasks_dir(self, file_path: Path) -> bool:
         """Check if a file path is within the tasks directory.

@@ -179,9 +179,7 @@ This will show the stats of the tasks sorted by the data from the most recent
 The stats are calculated for each task by 
  - the number of commits, 
  - the number of lines covered by the task.
- - features modified by the task 
-
-Rendered by CodeBook [`dev`](codebook:codebook.version)
+ - features modified by the task
 
 --- BACKLINKS ---
-[Tasks](README.md "codebook:backlink")
+[README](README.md "codebook:backlink")

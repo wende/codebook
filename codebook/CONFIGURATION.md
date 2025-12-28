@@ -213,9 +213,7 @@ codebook watch docs/ --exec --cicada
 
 ---
 
-Rendered by CodeBook [`dev`](codebook:codebook.version)
-
 --- BACKLINKS ---
-[codebook.yml](AI_HELPERS.md "codebook:backlink")
-[Configuration](CLIENT_SERVER.md "codebook:backlink")
-[Configuration](README.md "codebook:backlink")
+[README](README.md "codebook:backlink")
+[CLIENT_SERVER](CLIENT_SERVER.md "codebook:backlink")
+[AI_HELPERS](AI_HELPERS.md "codebook:backlink")

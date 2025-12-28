@@ -85,4 +85,4 @@ Common codes:
 Rendered by CodeBook
 
 --- BACKLINKS ---
-[ANSI Escape Stripping](README.md "codebook:backlink")
+[README](README.md "codebook:backlink")

@@ -1415,7 +1415,7 @@ diff --git a/module2.py b/module2.py
 
         assert result.exit_code == 0
         assert "Updated task:" in result.output
-        assert "+1 file(s)" in result.output
+        assert "+1 added" in result.output
 
         # Verify task contains both diffs
         content = task_file.read_text()
@@ -1423,8 +1423,8 @@ diff --git a/module2.py b/module2.py
         assert "doc2.md" in content
         assert "New doc2 content" in content
 
-    def test_task_update_no_new_files(self, git_repo: Path):
-        """Should report when no new files to add."""
+    def test_task_update_updates_existing_files(self, git_repo: Path):
+        """Should update diffs for files already in the task."""
         runner = CliRunner()
 
         # Create and commit initial files
@@ -1451,13 +1451,26 @@ diff --git a/module2.py b/module2.py
         task_files = list(tasks_dir.glob("*MY_TASK.md"))
         task_file = task_files[0]
 
-        # Try to update with no new changes (doc1 is already in task)
+        # Verify initial content
+        initial_content = task_file.read_text()
+        assert "Modified doc1" in initial_content
+
+        # Modify doc1 again (file already in task)
+        doc1.write_text("Further modified doc1")
+
+        # Update task - should update existing diff
         result = runner.invoke(
             main,
             ["task", "update", str(task_file), str(docs_dir)],
+            catch_exceptions=False,
         )
 
-        assert "No new modified documentation files to add" in result.output
+        assert result.exit_code == 0
+        assert "~1 updated" in result.output
+
+        # Verify task contains the new diff content
+        updated_content = task_file.read_text()
+        assert "Further modified doc1" in updated_content
 
     def test_task_update_preserves_footer(self, git_repo: Path):
         """Should insert diffs before footer markers."""
@@ -1536,7 +1549,7 @@ Some notes here
         )
 
         assert result.exit_code == 0
-        assert "+2 file(s)" in result.output
+        assert "+2 added" in result.output
 
         content = task_file.read_text()
         assert "doc2.md" in content

@@ -952,6 +952,19 @@ def task_new(
         click.echo("Use --all to include all files regardless of git status", err=True)
         return
 
+    # Get git root for relative paths
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        git_root = Path(result.stdout.strip())
+    except Exception:
+        click.echo("Error: Not in a git repository", err=True)
+        return
+
     # Build task content
     lines = []
     # Add prefix if configured
@@ -971,12 +984,15 @@ def task_new(
         if not diff_output:
             continue
 
+        rel_path = str(file_path.resolve().relative_to(git_root))
         file_count += 1
+        lines.append(f'<diff file="{rel_path}">\n')
         lines.append("```diff\n")
         lines.append(diff_output)
         if not diff_output.endswith("\n"):
             lines.append("\n")
-        lines.append("```\n\n")
+        lines.append("```\n")
+        lines.append("</diff>\n\n")
 
     if file_count == 0:
         click.echo(f"No modified markdown files found in {scope}", err=True)
@@ -1001,8 +1017,8 @@ def task_new(
 def task_update(ctx: click.Context, task_file: Path, scope: Path) -> None:
     """Update a task file with new diffs to documentation files.
 
-    Appends new diffs for modified documentation files in scope that aren't
-    already included in the task file.
+    Updates existing diffs for files already in the task and appends
+    new diffs for modified files not yet included.
 
     Example:
         codebook task update ./tasks/202412281530-FEATURE.md ./docs
@@ -1064,10 +1080,14 @@ def task_update(ctx: click.Context, task_file: Path, scope: Path) -> None:
     def extract_files_from_task(content: str) -> set[str]:
         """Extract file paths already documented in the task."""
         files = set()
-        # Match diff headers like "diff --git a/path/to/file b/path/to/file"
+        # Match new format: <diff file="path/to/file">
+        tag_pattern = re.compile(r'<diff file="([^"]+)">')
+        for match in tag_pattern.finditer(content):
+            files.add(match.group(1))
+        # Also match old format for backwards compatibility: diff --git a/path b/path
         diff_pattern = re.compile(r"^diff --git a/([^\s]+) b/([^\s]+)", re.MULTILINE)
         for match in diff_pattern.finditer(content):
-            files.add(match.group(2))  # Use the "b/" path
+            files.add(match.group(2))
         return files
 
     # Read existing task content
@@ -1086,7 +1106,7 @@ def task_update(ctx: click.Context, task_file: Path, scope: Path) -> None:
     modified, untracked_files = get_modified_files(scope)
     all_changed = modified | untracked_files
 
-    # Filter to modified files not already in task
+    # Get git root for relative paths
     try:
         result = subprocess.run(
             ["git", "rev-parse", "--show-toplevel"],
@@ -1099,24 +1119,64 @@ def task_update(ctx: click.Context, task_file: Path, scope: Path) -> None:
         click.echo("Error: Not in a git repository", err=True)
         return
 
+    # Separate files into new (to add) and existing (to update)
     files_to_add = []
+    files_to_update = []
     for f in candidates:
         if f.resolve() not in all_changed:
             continue
         try:
             rel_path = str(f.resolve().relative_to(git_root))
-            if rel_path not in existing_files:
+            if rel_path in existing_files:
+                files_to_update.append((f, rel_path))
+            else:
                 files_to_add.append(f)
         except ValueError:
             continue
 
-    if not files_to_add:
-        click.echo("No new modified documentation files to add", err=True)
+    if not files_to_add and not files_to_update:
+        click.echo("No modified documentation files to update", err=True)
         return
 
-    # Build new diff content
+    # Update existing file diffs in place
+    updated_content = task_content
+    updated_count = 0
+
+    for file_path, rel_path in files_to_update:
+        is_untracked = file_path.resolve() in untracked_files
+        diff_output = get_git_diff(file_path, is_untracked=is_untracked)
+
+        if not diff_output:
+            continue
+
+        # Build new diff block with tag wrapper
+        diff_content = diff_output if diff_output.endswith("\n") else diff_output + "\n"
+        new_diff_block = f'<diff file="{rel_path}">\n```diff\n{diff_content}```\n</diff>\n\n'
+
+        # Try new format first: <diff file="...">...</diff>
+        escaped_path = re.escape(rel_path)
+        tag_pattern = re.compile(
+            rf'<diff file="{escaped_path}">.*?</diff>\n*',
+            re.DOTALL,
+        )
+        if tag_pattern.search(updated_content):
+            updated_content = tag_pattern.sub(new_diff_block, updated_content)
+            updated_count += 1
+            continue
+
+        # Fall back to old format: ```diff\ndiff --git a/path b/path\n...```
+        # Match closing ``` only at start of line to avoid matching ``` inside diff
+        old_pattern = re.compile(
+            rf"```diff\ndiff --git a/{escaped_path} b/{escaped_path}\n.*?\n```\n*",
+            re.DOTALL,
+        )
+        if old_pattern.search(updated_content):
+            updated_content = old_pattern.sub(new_diff_block, updated_content)
+            updated_count += 1
+
+    # Build new diff content for new files
     new_diffs = []
-    file_count = 0
+    added_count = 0
 
     for file_path in files_to_add:
         is_untracked = file_path.resolve() in untracked_files
@@ -1125,34 +1185,46 @@ def task_update(ctx: click.Context, task_file: Path, scope: Path) -> None:
         if not diff_output:
             continue
 
-        file_count += 1
+        rel_path = str(file_path.resolve().relative_to(git_root))
+        added_count += 1
+        new_diffs.append(f'<diff file="{rel_path}">\n')
         new_diffs.append("```diff\n")
         new_diffs.append(diff_output)
         if not diff_output.endswith("\n"):
             new_diffs.append("\n")
-        new_diffs.append("```\n\n")
+        new_diffs.append("```\n")
+        new_diffs.append("</diff>\n\n")
 
-    if file_count == 0:
-        click.echo("No new diffs to add", err=True)
+    if added_count == 0 and updated_count == 0:
+        click.echo("No diffs to update", err=True)
         return
 
-    # Append to task file (before any footer sections like "--- FEATURE TASK ---")
-    footer_markers = ["--- FEATURE TASK ---", "--- NOTES ---", "--- SOLUTION ---"]
-    insert_pos = len(task_content)
+    # Append new files before footer sections
+    if new_diffs:
+        footer_markers = ["--- FEATURE TASK ---", "--- NOTES ---", "--- SOLUTION ---"]
+        insert_pos = len(updated_content)
 
-    for marker in footer_markers:
-        pos = task_content.find(marker)
-        if pos != -1 and pos < insert_pos:
-            insert_pos = pos
+        for marker in footer_markers:
+            pos = updated_content.find(marker)
+            if pos != -1 and pos < insert_pos:
+                insert_pos = pos
 
-    # Insert new diffs before footer or at end
-    if insert_pos < len(task_content):
-        updated_content = task_content[:insert_pos] + "".join(new_diffs) + task_content[insert_pos:]
-    else:
-        updated_content = task_content.rstrip() + "\n\n" + "".join(new_diffs)
+        if insert_pos < len(updated_content):
+            updated_content = (
+                updated_content[:insert_pos] + "".join(new_diffs) + updated_content[insert_pos:]
+            )
+        else:
+            updated_content = updated_content.rstrip() + "\n\n" + "".join(new_diffs)
 
     task_file.write_text(updated_content, encoding="utf-8")
-    click.echo(f"Updated task: {task_file} (+{file_count} file(s))")
+
+    # Build status message
+    parts = []
+    if updated_count > 0:
+        parts.append(f"~{updated_count} updated")
+    if added_count > 0:
+        parts.append(f"+{added_count} added")
+    click.echo(f"Updated task: {task_file} ({', '.join(parts)})")
 
 
 @task.command("list")

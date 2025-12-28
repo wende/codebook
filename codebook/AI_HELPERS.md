@@ -38,4 +38,4 @@ codebook ai review claude ./codebook/tasks/YYYYMMDDHHMM-TITLE.md
 ```
 
 --- BACKLINKS ---
-[AI Helpers](README.md "codebook:backlink")
+[README](README.md "codebook:backlink")
