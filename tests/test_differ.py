@@ -1,5 +1,6 @@
 """Tests for the CodeBook git diff generator module."""
 
+import os
 import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -8,6 +9,25 @@ import pytest
 
 from codebook.differ import CodeBookDiffer, DiffResult
 from codebook.renderer import CodeBookRenderer
+
+
+def _get_clean_git_env() -> dict[str, str]:
+    """Get environment with git-related variables removed."""
+    env = os.environ.copy()
+    for var in ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"]:
+        env.pop(var, None)
+    return env
+
+
+def git_commit(repo_path: Path, message: str = "Initial") -> None:
+    """Stage all changes and commit in a single subprocess call."""
+    subprocess.run(
+        f"git add -A && git commit -m '{message}'",
+        cwd=repo_path,
+        capture_output=True,
+        shell=True,
+        env=_get_clean_git_env(),
+    )
 
 
 class TestDiffResult:
@@ -96,12 +116,7 @@ class TestCodeBookDiffer:
         # Create and commit a file
         md_file = git_repo / "test.md"
         md_file.write_text("[`old`](codebook:server.test)")
-        subprocess.run(["git", "add", "test.md"], cwd=git_repo, capture_output=True)
-        subprocess.run(
-            ["git", "commit", "-m", "Initial"],
-            cwd=git_repo,
-            capture_output=True,
-        )
+        git_commit(git_repo)
 
         # Modify the file
         md_file.write_text("[`new`](codebook:server.test)")
@@ -127,12 +142,7 @@ class TestCodeBookDiffer:
         # Create and commit files
         (git_repo / "file1.md").write_text("content1")
         (git_repo / "file2.md").write_text("content2")
-        subprocess.run(["git", "add", "."], cwd=git_repo, capture_output=True)
-        subprocess.run(
-            ["git", "commit", "-m", "Initial"],
-            cwd=git_repo,
-            capture_output=True,
-        )
+        git_commit(git_repo)
 
         result = differ.diff_directory(git_repo)
 
@@ -165,12 +175,7 @@ class TestCodeBookDiffer:
         subdir.mkdir()
         (git_repo / "root.md").write_text("content")
         (subdir / "nested.md").write_text("content")
-        subprocess.run(["git", "add", "."], cwd=git_repo, capture_output=True)
-        subprocess.run(
-            ["git", "commit", "-m", "Initial"],
-            cwd=git_repo,
-            capture_output=True,
-        )
+        git_commit(git_repo)
 
         result = differ.diff_directory(git_repo, recursive=True)
 
@@ -189,12 +194,7 @@ class TestCodeBookDiffer:
         subdir.mkdir()
         (git_repo / "root.md").write_text("content")
         (subdir / "nested.md").write_text("content")
-        subprocess.run(["git", "add", "."], cwd=git_repo, capture_output=True)
-        subprocess.run(
-            ["git", "commit", "-m", "Initial"],
-            cwd=git_repo,
-            capture_output=True,
-        )
+        git_commit(git_repo)
 
         result = differ.diff_directory(git_repo, recursive=False)
 
@@ -267,12 +267,7 @@ class TestCodeBookDiffer:
         # Create and commit files
         (git_repo / "file1.md").write_text("[`a`](codebook:server.test)")
         (git_repo / "file2.md").write_text("[`b`](codebook:server.test)")
-        subprocess.run(["git", "add", "."], cwd=git_repo, capture_output=True)
-        subprocess.run(
-            ["git", "commit", "-m", "Initial"],
-            cwd=git_repo,
-            capture_output=True,
-        )
+        git_commit(git_repo)
 
         # Modify files
         (git_repo / "file1.md").write_text("[`A`](codebook:server.test)")

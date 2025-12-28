@@ -27,9 +27,9 @@ stop:
 	@pkill -f "mock_server.py" 2>/dev/null || true
 	@echo "Stopped background services"
 
-# Run tests
+# Run tests in parallel (quiet, only show failures)
 test:
-	python -m pytest tests/ -v
+	PYTHONWARNINGS="ignore::RuntimeWarning" python -m pytest tests/ -n auto -q --tb=short
 
 # Clean up
 clean:
@@ -71,8 +71,8 @@ pr-comments:
 	echo "================================================================================"; \
 	echo ""; \
 	TEMP_PR_COMMENTS=$$(mktemp); \
-	gh pr view $$PR_NUMBER --json comments --jq '.comments[]? // empty | select(.isMinimized == false)' > "$$TEMP_PR_COMMENTS"; \
-	PR_COMMENT_COUNT=$$(jq -s 'length' "$$TEMP_PR_COMMENTS"); \
+	gh pr view $$PR_NUMBER --json comments --jq '.comments[]? // empty | select(.isMinimized == false and . != null)' > "$$TEMP_PR_COMMENTS"; \
+	PR_COMMENT_COUNT=$$(jq -s 'map(select(. != null)) | length' "$$TEMP_PR_COMMENTS"); \
 	FOUND_UNADDRESSED_PR=false; \
 	for i in $$(seq 0 $$((PR_COMMENT_COUNT - 1))); do \
 		COMMENT_DATE=$$(jq -r -s ".[$${i}].createdAt" "$$TEMP_PR_COMMENTS"); \
@@ -93,8 +93,8 @@ pr-comments:
 	echo "================================================================================"; \
 	echo ""; \
 	TEMP_REVIEWS=$$(mktemp); \
-	gh pr view $$PR_NUMBER --json reviews --jq '.reviews[]? // empty | select(.body != "" and (.isMinimized == false or .isMinimized == null))' > "$$TEMP_REVIEWS"; \
-	REVIEW_COUNT=$$(jq -s 'length' "$$TEMP_REVIEWS"); \
+	gh pr view $$PR_NUMBER --json reviews --jq '.reviews[]? // empty | select(. != null and .body != "" and (.isMinimized == false or .isMinimized == null))' > "$$TEMP_REVIEWS"; \
+	REVIEW_COUNT=$$(jq -s 'map(select(. != null)) | length' "$$TEMP_REVIEWS"); \
 	FOUND_UNADDRESSED_REVIEW=false; \
 	for i in $$(seq 0 $$((REVIEW_COUNT - 1))); do \
 		REVIEW_DATE=$$(jq -r -s ".[$${i}].submittedAt" "$$TEMP_REVIEWS"); \

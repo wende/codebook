@@ -96,22 +96,28 @@ def mock_responses() -> Iterator[responses.RequestsMock]:
         yield rsps
 
 
+def git_commit(repo_path: Path, message: str = "Initial") -> None:
+    """Stage all changes and commit in a single subprocess call."""
+    env = get_clean_git_env()
+    subprocess.run(
+        f"git add -A && git commit -m '{message}'",
+        cwd=repo_path,
+        capture_output=True,
+        shell=True,
+        env=env,
+    )
+
+
 @pytest.fixture
 def git_repo(temp_dir: Path) -> Path:
     """Create a temporary git repository."""
     env = get_clean_git_env()
-    subprocess.run(["git", "init"], cwd=temp_dir, capture_output=True, env=env)
+    # Combine init and config into a single shell command
     subprocess.run(
-        ["git", "config", "user.email", "test@test.com"],
+        "git init && git config user.email test@test.com && git config user.name 'Test User'",
         cwd=temp_dir,
         capture_output=True,
+        shell=True,
         env=env,
     )
-    subprocess.run(
-        ["git", "config", "user.name", "Test User"],
-        cwd=temp_dir,
-        capture_output=True,
-        env=env,
-    )
-
     return temp_dir
