@@ -684,11 +684,19 @@ class TestTaskCommands:
         assert task1.exists()
         assert not task2.exists()
 
-    def test_task_coverage_no_tasks(self, runner: CliRunner):
+    def test_task_coverage_no_tasks(self, git_repo: Path):
         """Should error when no tasks directory exists."""
-        with runner.isolated_filesystem():
+        import os
+
+        runner = CliRunner()
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(git_repo)
             result = runner.invoke(main, ["task", "coverage"])
-            assert "No tasks directory found" in result.output
+            # When in git repo but no tasks dir, should report no commits found
+            assert "No commits found in task files" in result.output
+        finally:
+            os.chdir(old_cwd)
 
     def test_task_coverage_not_git_repo(self, runner: CliRunner):
         """Should error when not in a git repository."""

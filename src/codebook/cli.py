@@ -1344,10 +1344,10 @@ def task_coverage(path_glob: str, detailed: bool, short: bool) -> None:
     """
 
     cfg = CodeBookConfig.load()
-    tasks_dir = Path(cfg.tasks_dir)
+    watch_dir = Path(cfg.watch_dir)
 
-    if not tasks_dir.exists():
-        click.echo("No tasks directory found.", err=True)
+    if not watch_dir.exists():
+        click.echo("No codebook directory found.", err=True)
         return
 
     # Get git root
@@ -1364,17 +1364,23 @@ def task_coverage(path_glob: str, detailed: bool, short: bool) -> None:
         return
 
     # Extract commits from task files using git blame
+    tasks_dir = Path(cfg.tasks_dir)
+
     def extract_commits_from_tasks() -> dict[str, str]:
         """Extract commits associated with task files using git blame.
 
-        Runs git blame on each task file to find all commits that have
-        modified the task. This connects task documentation to the actual
-        commits that implemented the task.
+        Runs git blame on each task markdown file to find all commits that have
+        modified the tasks. This connects tasks to the actual commits that
+        implemented the features.
 
         Returns:
-            Dict mapping commit SHA (short) to task name
+            Dict mapping commit SHA (short) to task file name
         """
         commit_to_task: dict[str, str] = {}
+
+        if not tasks_dir.exists():
+            return commit_to_task
+
         task_files = sorted(tasks_dir.glob("*.md"))
 
         for task_file in task_files:
@@ -1385,7 +1391,8 @@ def task_coverage(path_glob: str, detailed: bool, short: bool) -> None:
                 rel_path = task_file.resolve().relative_to(git_root)
 
                 # Run git blame to get all commits that touched this task file
-                cmd = ["git", "blame", "--porcelain", str(rel_path)]
+                # Use -CCC to detect copies/renames across files
+                cmd = ["git", "blame", "-CCC", "--porcelain", str(rel_path)]
                 result = subprocess.run(
                     cmd,
                     cwd=git_root,
@@ -1458,8 +1465,9 @@ def task_coverage(path_glob: str, detailed: bool, short: bool) -> None:
     for file_path in files_to_analyze:
         try:
             # Get git blame for the file
+            # Use -CCC to detect copies/renames across files
             result = subprocess.run(
-                ["git", "blame", "--line-porcelain", str(file_path)],
+                ["git", "blame", "-CCC", "--line-porcelain", str(file_path)],
                 cwd=git_root,
                 capture_output=True,
                 text=True,
