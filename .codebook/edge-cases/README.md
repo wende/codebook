@@ -16,3 +16,6 @@ This folder documents implementation-specific behaviors that are important to un
 ---
 
 Rendered by CodeBook
+
+--- BACKLINKS ---
+[Edge Cases](../README.md "codebook:backlink")

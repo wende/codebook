@@ -16,21 +16,12 @@ RESULT
 
 Search for functions by name:
 
-<cicada endpoint="search-function" function_name="render" format="json" jq=".results[0]">
-{
-  "module": "_file_conftest",
-  "moduledoc": null,
-  "function": "renderer",
-  "arity": 1,
-  "full_name": "_file_conftest.renderer/1",
-  "signature": "@pytest.fixture\ndef renderer(\n  client: CodeBookClient\n) -> CodeBookRenderer:",
-  "location": "conftest.py:34",
-  "type": "public",
-  "doc": "CodeBook renderer.",
-  "call_sites": []
-}
-</cicada>
+<cicada endpoint="search-function" function_name="render" format="json" jq=".results[0].module" render="code[json]">
+
+```json
+_file_src.codebook.cli
 ```
+</cicada>
 
 **Parameters:**
 - `function_name` (required) - Function name to search
@@ -42,10 +33,8 @@ Search for modules:
 
 ```html
 <cicada endpoint="search-module" module_name="CodeBookParser" jq=".module,.location">
-[
-  null,
-  null
-]
+CodeBookParser  
+src/codebook/parser.py:94
 </cicada>
 ```
 
@@ -78,6 +67,7 @@ Get git history for a file or module:
 <cicada endpoint="git-history" file_path="src/codebook/parser.py" limit="5">
 ## History for src/codebook/parser.py
 
+- 549dabdd (2025-12-28) @Krzysztof Wende: Add frontmatter parsing and configuration improvements
 - 6a297a18 (2025-12-28) @Krzysztof Wende: A lot
 - 3f2e42cb (2025-12-27) @Krzysztof Wende: Test commit
 - 4f4a722c (2025-12-27) @Krzysztof Wende: INIT
@@ -99,9 +89,22 @@ Returns structured JSON data:
 
 ```json
 {
-  "error": "Function not found",
   "query": "get_codebook_version",
-  "hint": "Verify the function name spelling or try without arity"
+  "total_matches": 1,
+  "results": [
+    {
+      "module": "_file_src.codebook.renderer",
+      "moduledoc": null,
+      "function": "get_codebook_version",
+      "arity": 0,
+      "full_name": "_file_src.codebook.renderer.get_codebook_version/0",
+      "signature": "def get_codebook_version() -> str:",
+      "location": "src/codebook/renderer.py:22",
+      "type": "public",
+      "doc": "Get the current codebook version from git.\n\n    Returns:\n        Version string in format 'tag (short_sha)' or just 'sha' if no tag.",
+      "call_sites": []
+    }
+  ]
 }
 ```
 </cicada>
@@ -111,7 +114,12 @@ Returns structured JSON data:
 Returns formatted markdown:
 
 <cicada endpoint="search-function" function_name="get_codebook_version" format="markdown">
-Not found: `get_codebook_version`. Try: `*get_codebook_version*` | query(['get', 'codebook', 'version'])
+---
+src/codebook/renderer.py:22
+_file_src.codebook.renderer.get_codebook_version()
+*No call sites found*
+
+---
 </cicada>
 
 ## JSON Path Extraction
@@ -122,7 +130,7 @@ Use the `jq` attribute to extract specific values from JSON responses:
 
 ```html
 <cicada endpoint="search-function" function_name="render" jq=".total_matches">
-42
+2
 </cicada>
 ```
 
@@ -130,7 +138,7 @@ Use the `jq` attribute to extract specific values from JSON responses:
 
 ```html
 <cicada endpoint="search-function" function_name="render" jq=".results[0].module">
-_file_conftest
+_file_src.codebook.cli
 </cicada>
 ```
 
@@ -182,17 +190,25 @@ codebook run  # Starts cicada if start: true
 Functions in the renderer module:
 
 <cicada endpoint="search-function" function_name="render_file" jq=".results[0].signature">
-def test_render_file_finds_templates(
+def render_file(
   self,
-  renderer: CodeBookRenderer,
-  mock_client: MagicMock,
-  temp_dir: Path
-): # -> None:
+  path: Path,
+  dry_run: bool = False
+) -> RenderResult:
 </cicada>
 
----
+## Code
+<cicada endpoint="search-module" file_path="cicada.py" format="json" jq=".location" render="code[python]">
 
-Rendered by CodeBook [`6a297a1`](codebook:codebook.version)
+```python
+src/codebook/cicada.py:86
+```
+</cicada>
 
---- BACKLINKS ---
-[Cicada Integration](README.md "codebook:backlink")
+# Tests 
+<cicada endpoint="search-module" file_path="tests/test_cicada.py" format="json" jq=".location" render="code[python]" what_calls_it="true" usage_type="tests">
+
+```python
+tests/test_cicada.py:8
+```
+</cicada>

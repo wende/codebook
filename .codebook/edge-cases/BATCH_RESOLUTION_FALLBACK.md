@@ -110,3 +110,6 @@ CodeBook:
 ---
 
 Rendered by CodeBook
+
+--- BACKLINKS ---
+[Batch Resolution Fallback](README.md "codebook:backlink")

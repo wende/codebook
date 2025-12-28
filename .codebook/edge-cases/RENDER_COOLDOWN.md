@@ -69,3 +69,6 @@ codebook watch docs/ --debounce 1.0
 ---
 
 Rendered by CodeBook
+
+--- BACKLINKS ---
+[Render Cooldown](README.md "codebook:backlink")

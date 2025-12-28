@@ -82,3 +82,6 @@ The parser strips code blocks before checking for existing backlinks.
 ---
 
 Rendered by CodeBook
+
+--- BACKLINKS ---
+[Backlink Deduplication](README.md "codebook:backlink")

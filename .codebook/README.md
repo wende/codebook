@@ -15,7 +15,7 @@ CodeBook transforms static markdown into living documentation by embedding dynam
 # Initialize a config file
 codebook init
 
-# Run with auto-reload
+# Run with documentation hot-reloading
 codebook run
 ```
 
@@ -25,15 +25,34 @@ codebook run
 - **[Code Execution](CODE_EXECUTION.md)** - Run Python code blocks
 - **[Cicada Integration](CICADA_INTEGRATION.md)** - Live code exploration
 - **[Configuration](CONFIGURATION.md)** - YAML config reference
+- **[Frontmatter](FRONTMATTER.md)** - YAML frontmatter support
 - **[Tasks](TASKS.md)** - Task management
 - **[Edge Cases](edge-cases/README.md)** - Implementation details and behaviors
+
+## CLI Commands
+
+### Core Commands
+- `codebook run` - Run with codebook.yml config (auto-starts services, watches for changes)
+- `codebook init` - Create default codebook.yml configuration
+- `codebook render <dir>` - One-time render of markdown files
+- `codebook watch <dir>` - Watch directory and auto-render on changes
+
+### Utility Commands
+- `codebook diff <path>` - Generate git diff with resolved values
+- `codebook show <file>` - Display rendered content of a file
+- `codebook health` - Check backend service health
+- `codebook clear-cache` - Clear template resolution cache
+
+### Task Management
+- `codebook task new <title> <scope>` - Create task from modified files
+- `codebook task list` - List all existing tasks
+- `codebook task delete [title]` - Delete a task (interactive if no title)
 
 ## Project Stats
 
 | Metric    | Value                               |
 | --------- | ----------------------------------- |
-| Templates | [`42`](codebook:project.file_count) |
-| Version   | [`6742eaf`](codebook:codebook.version)  |
+| Version   | [`549dabd`](codebook:codebook.version)  |
 
 ## Documentation Files
 
@@ -41,4 +60,4 @@ codebook run
 
 ---
  
-Rendered by CodeBook [`6742eaf`](codebook:codebook.version)
+Rendered by CodeBook [`549dabd`](codebook:codebook.version)

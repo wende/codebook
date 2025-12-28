@@ -10,7 +10,38 @@ codebook task new "Title of the task" ./scope
 
 This creates `.codebook/tasks/YYYYMMDDHHMM-TITLE_OF_THE_TASK.md` containing git diffs for each modified file.
 
-Users can delete the tasks by running `codebook task delete` with the "Title of the task" or without it the pick tool will be used to select the task to delete from the list of tasks.
+## Listing Tasks
+
+View all existing tasks:
+
+```bash
+codebook task list
+```
+
+Shows all task files with formatted dates:
+```
+Tasks:
+  [2025-12-28 00:19] TASKS_AS_HISTORY
+  [2025-12-27 23:30] BIDIRECTIONAL_LINKS
+  [2025-12-27] CODEBOOK_TAGS
+```
+
+## Deleting Tasks
+
+Delete a task by title:
+
+```bash
+codebook task delete "Title of the task"
+```
+
+Or run without a title for an interactive picker:
+
+```bash
+codebook task delete
+```
+
+Options:
+- `--force` or `-f`: Delete without confirmation
 
 
 ## Prefix and Suffix
@@ -93,7 +124,7 @@ diff --git a/path/to/file.md b/path/to/file.md
 
 ---
 
-Rendered by CodeBook [`6a297a1`](codebook:codebook.version)
+Rendered by CodeBook [`549dabd`](codebook:codebook.version)
 
 --- BACKLINKS ---
 [Tasks](README.md "codebook:backlink")

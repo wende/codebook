@@ -79,3 +79,6 @@ disable: backlinks
 - Invalid YAML is silently ignored (file processes normally)
 - Custom fields are preserved in the `raw` property for programmatic access
 - Frontmatter that doesn't start at line 1 is not recognized
+
+--- BACKLINKS ---
+[Frontmatter](README.md "codebook:backlink")

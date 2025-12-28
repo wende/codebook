@@ -111,3 +111,6 @@ In a submodule:
 ---
 
 Rendered by CodeBook
+
+--- BACKLINKS ---
+[Git Root Resolution](README.md "codebook:backlink")
