@@ -1,5 +1,6 @@
 """Shared test fixtures and configuration."""
 
+import os
 import subprocess
 import tempfile
 from collections.abc import Iterator
@@ -10,6 +11,27 @@ import responses
 
 from codebook.client import CodeBookClient
 from codebook.renderer import CodeBookRenderer
+
+
+def get_clean_git_env() -> dict[str, str]:
+    """Get environment with git-related variables removed.
+
+    This prevents pre-commit hook context from affecting test git operations.
+    """
+    env = os.environ.copy()
+    for var in [
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_INDEX_FILE",
+        "GIT_AUTHOR_NAME",
+        "GIT_AUTHOR_EMAIL",
+        "GIT_AUTHOR_DATE",
+        "GIT_COMMITTER_NAME",
+        "GIT_COMMITTER_EMAIL",
+        "GIT_COMMITTER_DATE",
+    ]:
+        env.pop(var, None)
+    return env
 
 
 @pytest.fixture
@@ -77,16 +99,19 @@ def mock_responses() -> Iterator[responses.RequestsMock]:
 @pytest.fixture
 def git_repo(temp_dir: Path) -> Path:
     """Create a temporary git repository."""
-    subprocess.run(["git", "init"], cwd=temp_dir, capture_output=True)
+    env = get_clean_git_env()
+    subprocess.run(["git", "init"], cwd=temp_dir, capture_output=True, env=env)
     subprocess.run(
         ["git", "config", "user.email", "test@test.com"],
         cwd=temp_dir,
         capture_output=True,
+        env=env,
     )
     subprocess.run(
         ["git", "config", "user.name", "Test User"],
         cwd=temp_dir,
         capture_output=True,
+        env=env,
     )
 
     return temp_dir

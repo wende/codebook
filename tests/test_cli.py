@@ -1,6 +1,7 @@
 """Tests for the CodeBook CLI interface."""
 
 import subprocess
+import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -8,6 +9,10 @@ import pytest
 from click.testing import CliRunner
 
 from codebook.cli import main
+
+# Import helper from conftest (pytest loads fixtures automatically, but we need explicit import)
+sys.path.insert(0, str(Path(__file__).parent))
+from conftest import get_clean_git_env
 
 
 class TestCLI:
@@ -140,27 +145,31 @@ class TestCLI:
     def test_diff_file(self, runner: CliRunner):
         """Should generate diff for file."""
         with runner.isolated_filesystem() as tmpdir:
-            # Initialize git repo
-            subprocess.run(["git", "init"], cwd=tmpdir, capture_output=True)
+            # Initialize git repo with clean environment
+            env = get_clean_git_env()
+            subprocess.run(["git", "init"], cwd=tmpdir, capture_output=True, env=env)
             subprocess.run(
                 ["git", "config", "user.email", "test@test.com"],
                 cwd=tmpdir,
                 capture_output=True,
+                env=env,
             )
             subprocess.run(
                 ["git", "config", "user.name", "Test"],
                 cwd=tmpdir,
                 capture_output=True,
+                env=env,
             )
 
             # Create and commit file
             md_file = Path(tmpdir) / "test.md"
             md_file.write_text("[`old`](codebook:server.test)")
-            subprocess.run(["git", "add", "test.md"], cwd=tmpdir, capture_output=True)
+            subprocess.run(["git", "add", "test.md"], cwd=tmpdir, capture_output=True, env=env)
             subprocess.run(
                 ["git", "commit", "-m", "Initial"],
                 cwd=tmpdir,
                 capture_output=True,
+                env=env,
             )
 
             with patch("codebook.cli.CodeBookClient") as mock_client_class:
@@ -328,19 +337,22 @@ class TestTaskCommands:
         """Create a temporary git repository with the CLI runner."""
         with runner.isolated_filesystem() as tmpdir:
             tmpdir_path = Path(tmpdir)
-            # Initialize git repo
-            subprocess.run(["git", "init"], cwd=tmpdir, capture_output=True, check=True)
+            # Initialize git repo with clean environment
+            env = get_clean_git_env()
+            subprocess.run(["git", "init"], cwd=tmpdir, capture_output=True, check=True, env=env)
             subprocess.run(
                 ["git", "config", "user.email", "test@test.com"],
                 cwd=tmpdir,
                 capture_output=True,
                 check=True,
+                env=env,
             )
             subprocess.run(
                 ["git", "config", "user.name", "Test"],
                 cwd=tmpdir,
                 capture_output=True,
                 check=True,
+                env=env,
             )
             yield tmpdir_path
 
@@ -729,6 +741,14 @@ index 0000000..{commit_sha}
 """
         task_file.write_text(task_content)
 
+        # Commit the task file so git blame can find it
+        subprocess.run(["git", "add", str(task_file)], cwd=git_repo, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Add task"],
+            cwd=git_repo,
+            capture_output=True,
+        )
+
         # Run coverage
         result = runner.invoke(main, ["task", "coverage", str(git_repo)])
 
@@ -777,6 +797,14 @@ index 0000000..{commit_sha}
 ```
 """
         task_file.write_text(task_content)
+
+        # Commit the task file so git blame can find it
+        subprocess.run(["git", "add", str(task_file)], cwd=git_repo, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Add task"],
+            cwd=git_repo,
+            capture_output=True,
+        )
 
         # Run coverage with detailed flag
         result = runner.invoke(
@@ -882,6 +910,14 @@ index 0000000..{commit_sha}
 ```
 """
         task_file.write_text(task_content)
+
+        # Commit the task file so git blame can find it
+        subprocess.run(["git", "add", str(task_file)], cwd=git_repo, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Add task"],
+            cwd=git_repo,
+            capture_output=True,
+        )
 
         # Run coverage with --short flag
         result = runner.invoke(main, ["task", "coverage", str(git_repo), "--short"])
@@ -1249,3 +1285,183 @@ diff --git a/module2.py b/module2.py
                 cwd=git_repo,
                 capture_output=True,
             )
+
+    def test_task_update_help(self, runner: CliRunner):
+        """Should show task update help."""
+        result = runner.invoke(main, ["task", "update", "--help"])
+
+        assert result.exit_code == 0
+        assert "Update a task file" in result.output
+
+    def test_task_update_adds_new_diff(self, git_repo: Path):
+        """Should add new diffs to existing task file."""
+        runner = CliRunner()
+
+        # Create and commit initial files
+        docs_dir = git_repo / "docs"
+        docs_dir.mkdir()
+        doc1 = docs_dir / "doc1.md"
+        doc1.write_text("Original doc1")
+        subprocess.run(["git", "add", "."], cwd=git_repo, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "Initial"], cwd=git_repo, capture_output=True)
+
+        # Modify doc1
+        doc1.write_text("Modified doc1")
+
+        # Create initial task
+        result = runner.invoke(
+            main,
+            ["task", "new", "Initial Task", str(docs_dir)],
+            catch_exceptions=False,
+        )
+        assert result.exit_code == 0
+
+        # Commit doc1 changes and task
+        subprocess.run(["git", "add", "."], cwd=git_repo, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "Doc1 update"], cwd=git_repo, capture_output=True)
+
+        # Add doc2 (new file)
+        doc2 = docs_dir / "doc2.md"
+        doc2.write_text("New doc2 content")
+
+        # Find the task file
+        tasks_dir = git_repo / "tasks"
+        task_files = list(tasks_dir.glob("*INITIAL_TASK.md"))
+        assert len(task_files) == 1
+        task_file = task_files[0]
+
+        # Update task with new docs
+        result = runner.invoke(
+            main,
+            ["task", "update", str(task_file), str(docs_dir)],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0
+        assert "Updated task:" in result.output
+        assert "+1 file(s)" in result.output
+
+        # Verify task contains both diffs
+        content = task_file.read_text()
+        assert "doc1.md" in content
+        assert "doc2.md" in content
+        assert "New doc2 content" in content
+
+    def test_task_update_no_new_files(self, git_repo: Path):
+        """Should report when no new files to add."""
+        runner = CliRunner()
+
+        # Create and commit initial files
+        docs_dir = git_repo / "docs"
+        docs_dir.mkdir()
+        doc1 = docs_dir / "doc1.md"
+        doc1.write_text("Original doc1")
+        subprocess.run(["git", "add", "."], cwd=git_repo, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "Initial"], cwd=git_repo, capture_output=True)
+
+        # Modify doc1
+        doc1.write_text("Modified doc1")
+
+        # Create task
+        result = runner.invoke(
+            main,
+            ["task", "new", "My Task", str(docs_dir)],
+            catch_exceptions=False,
+        )
+        assert result.exit_code == 0
+
+        # Find task file
+        tasks_dir = git_repo / "tasks"
+        task_files = list(tasks_dir.glob("*MY_TASK.md"))
+        task_file = task_files[0]
+
+        # Try to update with no new changes (doc1 is already in task)
+        result = runner.invoke(
+            main,
+            ["task", "update", str(task_file), str(docs_dir)],
+        )
+
+        assert "No new modified documentation files to add" in result.output
+
+    def test_task_update_preserves_footer(self, git_repo: Path):
+        """Should insert diffs before footer markers."""
+        runner = CliRunner()
+
+        # Create and commit initial file
+        docs_dir = git_repo / "docs"
+        docs_dir.mkdir()
+        doc1 = docs_dir / "doc1.md"
+        doc1.write_text("Original")
+        subprocess.run(["git", "add", "."], cwd=git_repo, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "Initial"], cwd=git_repo, capture_output=True)
+
+        # Create task file with footer manually
+        tasks_dir = git_repo / "tasks"
+        tasks_dir.mkdir(parents=True)
+        task_file = tasks_dir / "202412281530-TEST_TASK.md"
+        task_file.write_text(
+            """# Test Task
+
+--- NOTES ---
+Some notes here
+"""
+        )
+
+        # Modify doc1
+        doc1.write_text("Modified")
+
+        # Update task
+        result = runner.invoke(
+            main,
+            ["task", "update", str(task_file), str(docs_dir)],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0
+
+        # Verify footer is preserved at end
+        content = task_file.read_text()
+        assert "--- NOTES ---" in content
+        assert "Some notes here" in content
+        # Diff should be before notes
+        notes_pos = content.find("--- NOTES ---")
+        diff_pos = content.find("```diff")
+        assert diff_pos < notes_pos
+
+    def test_task_update_with_directory_scope(self, git_repo: Path):
+        """Should update with multiple files from directory scope."""
+        runner = CliRunner()
+
+        # Create and commit initial file
+        docs_dir = git_repo / "docs"
+        docs_dir.mkdir()
+        doc1 = docs_dir / "doc1.md"
+        doc1.write_text("Original doc1")
+        subprocess.run(["git", "add", "."], cwd=git_repo, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "Initial"], cwd=git_repo, capture_output=True)
+
+        # Create task file
+        tasks_dir = git_repo / "tasks"
+        tasks_dir.mkdir(parents=True)
+        task_file = tasks_dir / "202412281530-DOCS_UPDATE.md"
+        task_file.write_text("# Docs Update\n\n")
+
+        # Add multiple new docs
+        doc2 = docs_dir / "doc2.md"
+        doc2.write_text("New doc2")
+        doc3 = docs_dir / "doc3.md"
+        doc3.write_text("New doc3")
+
+        # Update task
+        result = runner.invoke(
+            main,
+            ["task", "update", str(task_file), str(docs_dir)],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0
+        assert "+2 file(s)" in result.output
+
+        content = task_file.read_text()
+        assert "doc2.md" in content
+        assert "doc3.md" in content
