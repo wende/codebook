@@ -103,12 +103,12 @@ jobs:
         # Sort by absolute diff (biggest changes first)
         changes.sort(key=lambda x: abs(x['diff']), reverse=True)
 
-        # Build markdown table
+        # Build markdown table (no backticks - they break JS template literals)
         if changes:
             table = "| File | Main | PR | Change |\n|------|------|-----|--------|\n"
             for c in changes[:20]:  # Limit to top 20 changes
                 sign = "+" if c['diff'] > 0 else ""
-                table += f"| `{c['file']}` | {c['main']:.1f}% | {c['pr']:.1f}% | {c['emoji']} {sign}{c['diff']:.1f}% |\n"
+                table += f"| {c['file']} | {c['main']:.1f}% | {c['pr']:.1f}% | {c['emoji']} {sign}{c['diff']:.1f}% |\n"
             if len(changes) > 20:
                 table += f"\n*...and {len(changes) - 20} more files with changes*\n"
         else:
