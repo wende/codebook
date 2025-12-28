@@ -21,7 +21,7 @@ from .parser import CodeBookParser, Frontmatter, LinkType
 
 
 def get_codebook_version() -> str:
-    """Get the current codebook version from git.
+    """Get the current project version from git.
 
     Returns:
         Version string from git describe (tag, tag-N-gSHA, or SHA if no tags).
@@ -30,11 +30,11 @@ def get_codebook_version() -> str:
         # Use git describe to get tag-based version
         # --tags: use any tag, not just annotated
         # --always: fall back to SHA if no tags exist
+        # Run from cwd (the project being rendered, not the installed package)
         result = subprocess.run(
             ["git", "describe", "--tags", "--always"],
             capture_output=True,
             text=True,
-            cwd=Path(__file__).parent,
         )
         if result.returncode != 0:
             return "dev"

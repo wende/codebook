@@ -55,7 +55,7 @@ codebook run
 
 | Metric    | Value                               |
 | --------- | ----------------------------------- |
-| Version   | [`d374531`](codebook:codebook.version)  |
+| Version   | [`dev`](codebook:codebook.version)  |
 
 ## Documentation Files
 
@@ -63,4 +63,4 @@ codebook run
 
 ---
  
-Rendered by CodeBook [`d374531`](codebook:codebook.version)
+Rendered by CodeBook [`dev`](codebook:codebook.version)

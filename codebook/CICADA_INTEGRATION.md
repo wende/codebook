@@ -67,6 +67,8 @@ Get git history for a file or module:
 <cicada endpoint="git-history" file_path="src/codebook/parser.py" limit="5">
 ## History for src/codebook/parser.py
 
+- d3745315 (2025-12-28) @Krzysztof Wende: Format code with black
+- 6c18359e (2025-12-28) @Krzysztof Wende: Update README and CLAUDE.md with Spec Driven Development focus
 - 549dabdd (2025-12-28) @Krzysztof Wende: Add frontmatter parsing and configuration improvements
 - 6a297a18 (2025-12-28) @Krzysztof Wende: A lot
 - 3f2e42cb (2025-12-27) @Krzysztof Wende: Test commit

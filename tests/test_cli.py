@@ -340,7 +340,9 @@ class TestTaskCommands:
             tmpdir_path = Path(tmpdir)
             # Initialize git repo with clean environment
             env = get_clean_git_env()
-            subprocess.run(["git", "init"], cwd=tmpdir, capture_output=True, check=True, env=env)
+            subprocess.run(
+                ["git", "init", "-b", "main"], cwd=tmpdir, capture_output=True, check=True, env=env
+            )
             subprocess.run(
                 ["git", "config", "user.email", "test@test.com"],
                 cwd=tmpdir,

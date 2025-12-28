@@ -55,7 +55,7 @@ now = datetime.now()
 print(f"Generated: {now.strftime('%Y-%m-%d %H:%M')}")
 </exec>
 <output>
-Generated: 2025-12-28 14:15
+Generated: 2025-12-28 17:56
 </output>
 
 ## Example: Importing Project Modules
@@ -147,7 +147,7 @@ x = 1 / 0
 <output>
 Error: ---------------------------------------------------------------------------
 ZeroDivisionError                         Traceback (most recent call last)
-Cell In[9], line 1
+Cell In[17], line 1
 ----> 1 x = 1 / 0
 
 ZeroDivisionError: division by zero
@@ -158,7 +158,7 @@ ZeroDivisionError: division by zero
 
 ---
 
-Rendered by CodeBook [`026a01a`](codebook:codebook.version)
+Rendered by CodeBook [`dev`](codebook:codebook.version)
 
 --- BACKLINKS ---
 [Code Execution](README.md "codebook:backlink")
