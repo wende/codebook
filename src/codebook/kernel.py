@@ -38,9 +38,7 @@ class CodeBookKernel:
     kernel lifecycle management.
     """
 
-    def __init__(
-        self, kernel_name: str = "python3", timeout: float = 30.0, cwd: str | None = None
-    ):
+    def __init__(self, kernel_name: str = "python3", timeout: float = 30.0, cwd: str | None = None):
         """Initialize the kernel manager.
 
         Args:

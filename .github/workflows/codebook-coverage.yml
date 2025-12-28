@@ -1,6 +1,8 @@
 name: CodeBook Coverage
 
 on:
+  push:
+    branches: [ main ]
   pull_request:
     branches: [ main, master, develop ]
 
@@ -34,6 +36,7 @@ jobs:
         echo "CodeBook Coverage: $COVERAGE"
 
     - name: Comment on PR
+      if: github.event_name == 'pull_request'
       uses: actions/github-script@v7
       with:
         script: |
@@ -67,3 +70,16 @@ jobs:
               body: body
             });
           }
+
+    - name: Update coverage badge
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      uses: schneegans/dynamic-badges-action@v1.7.0
+      with:
+        auth: ${{ secrets.GIST_TOKEN }}
+        gistID: ${{ vars.COVERAGE_GIST_ID }}
+        filename: codebook-coverage.json
+        label: codebook coverage
+        message: ${{ steps.coverage.outputs.score }}
+        valColorRange: ${{ steps.coverage.outputs.score }}
+        maxColorRange: 100
+        minColorRange: 0

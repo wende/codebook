@@ -56,6 +56,7 @@ def get_codebook_version() -> str:
     except Exception:
         return "dev"
 
+
 if TYPE_CHECKING:
     from .cicada import CicadaClient
     from .kernel import CodeBookKernel
@@ -173,14 +174,12 @@ class CodeBookRenderer:
         # Separate different link types
         exec_blocks = [link for link in all_links if link.link_type == LinkType.EXEC]
         cicada_blocks = [link for link in all_links if link.link_type == LinkType.CICADA]
-        markdown_links = [
-            link for link in all_links if link.link_type == LinkType.MARKDOWN_LINK
-        ]
+        markdown_links = [link for link in all_links if link.link_type == LinkType.MARKDOWN_LINK]
         template_links = [
-            link for link in all_links
-            if link.link_type not in (
-                LinkType.EXEC, LinkType.CICADA, LinkType.MARKDOWN_LINK, LinkType.BACKLINK
-            )
+            link
+            for link in all_links
+            if link.link_type
+            not in (LinkType.EXEC, LinkType.CICADA, LinkType.MARKDOWN_LINK, LinkType.BACKLINK)
         ]
 
         # Count templates (excluding exec, cicada, bidirectional, and backlink blocks)
@@ -245,9 +244,7 @@ class CodeBookRenderer:
 
         return result
 
-    def _execute_code_blocks(
-        self, content: str, exec_blocks: list
-    ) -> tuple[str, int]:
+    def _execute_code_blocks(self, content: str, exec_blocks: list) -> tuple[str, int]:
         """Execute code blocks and update content with results.
 
         Args:
@@ -286,9 +283,7 @@ class CodeBookRenderer:
 
         return content, executed
 
-    def _execute_cicada_queries(
-        self, content: str, cicada_blocks: list
-    ) -> tuple[str, int]:
+    def _execute_cicada_queries(self, content: str, cicada_blocks: list) -> tuple[str, int]:
         """Execute Cicada queries and update content with results.
 
         Args:
@@ -310,7 +305,9 @@ class CodeBookRenderer:
 
                 # Call the appropriate Cicada endpoint
                 if endpoint == "query":
-                    keywords = params.get("keywords", "").split(",") if params.get("keywords") else None
+                    keywords = (
+                        params.get("keywords", "").split(",") if params.get("keywords") else None
+                    )
                     result = self.cicada.query(
                         keywords=[k.strip() for k in keywords] if keywords else None,
                         pattern=params.get("pattern"),
@@ -404,11 +401,12 @@ class CodeBookRenderer:
             Position of the BACKLINKS marker, or None if not found
         """
         import re
+
         backlinks_marker = "--- BACKLINKS ---"
 
         # Find all fenced code block ranges (``` or ~~~)
         code_block_ranges = []
-        for match in re.finditer(r'(```|~~~)[^\n]*\n.*?\1', content, flags=re.DOTALL):
+        for match in re.finditer(r"(```|~~~)[^\n]*\n.*?\1", content, flags=re.DOTALL):
             code_block_ranges.append((match.start(), match.end()))
 
         def is_in_code_block(pos: int) -> bool:
@@ -416,7 +414,7 @@ class CodeBookRenderer:
             return any(start <= pos < end for start, end in code_block_ranges)
 
         # Look for the marker on its own line
-        pattern = re.compile(r'^[ \t]*' + re.escape(backlinks_marker) + r'[ \t]*$', re.MULTILINE)
+        pattern = re.compile(r"^[ \t]*" + re.escape(backlinks_marker) + r"[ \t]*$", re.MULTILINE)
 
         # Find the last match that is NOT inside a code block
         for match in reversed(list(pattern.finditer(content))):
@@ -425,9 +423,7 @@ class CodeBookRenderer:
 
         return None
 
-    def _update_backlinks(
-        self, source_path: Path, markdown_links: list
-    ) -> int:
+    def _update_backlinks(self, source_path: Path, markdown_links: list) -> int:
         """Update backlinks in target files for markdown links.
 
         For each markdown link [text](file.md) pointing to a .md file, this method:
@@ -453,6 +449,7 @@ class CodeBookRenderer:
                 # Absolute path from project root - find git root
                 try:
                     import subprocess
+
                     result = subprocess.run(
                         ["git", "rev-parse", "--show-toplevel"],
                         capture_output=True,
@@ -487,14 +484,11 @@ class CodeBookRenderer:
                 # Files are not in a parent/child relationship, use relative path
                 try:
                     # Try to find common base
-                    backlink_url = Path(
-                        "../" * len(target_path.parent.parts)
-                    ) / source_path
+                    backlink_url = Path("../" * len(target_path.parent.parts)) / source_path
                     # Simplify the path
                     import os
-                    backlink_url = Path(
-                        os.path.relpath(source_path, target_path.parent)
-                    )
+
+                    backlink_url = Path(os.path.relpath(source_path, target_path.parent))
                 except Exception:
                     backlink_url = source_path
 

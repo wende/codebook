@@ -153,9 +153,7 @@ class CodeBookParser:
     SPAN_PATTERN = re.compile(r'<span data-codebook="([^"]+)">([^<]*)</span>')
 
     # Pattern 4: <div data-codebook="TEMPLATE">CONTENT</div> (multiline)
-    DIV_PATTERN = re.compile(
-        r'<div data-codebook="([^"]+)">\n?(.*?)\n?</div>', re.DOTALL
-    )
+    DIV_PATTERN = re.compile(r'<div data-codebook="([^"]+)">\n?(.*?)\n?</div>', re.DOTALL)
 
     # Pattern 5: <exec lang="LANG">CODE</exec>\n<output>RESULT</output>
     EXEC_PATTERN = re.compile(
@@ -165,7 +163,7 @@ class CodeBookParser:
 
     # Pattern 6: <cicada endpoint="..." attr="val">CONTENT</cicada>
     CICADA_PATTERN = re.compile(
-        r'<cicada\s+([^>]+)>\n?(.*?)\n?</cicada>',
+        r"<cicada\s+([^>]+)>\n?(.*?)\n?</cicada>",
         re.DOTALL,
     )
 
@@ -173,7 +171,7 @@ class CodeBookParser:
     ATTR_PATTERN = re.compile(r'(\w+)="([^"]*)"')
 
     # Pattern for YAML frontmatter at the start of a document
-    FRONTMATTER_PATTERN = re.compile(r'^---\n(.*?)\n---\n?', re.DOTALL)
+    FRONTMATTER_PATTERN = re.compile(r"^---\n(.*?)\n---\n?", re.DOTALL)
 
     def parse_frontmatter(self, content: str) -> tuple[Frontmatter, str]:
         """Parse YAML frontmatter from the beginning of content.
@@ -192,7 +190,7 @@ class CodeBookParser:
             return Frontmatter(), content
 
         yaml_content = match.group(1)
-        content_without_frontmatter = content[match.end():]
+        content_without_frontmatter = content[match.end() :]
 
         try:
             data = yaml.safe_load(yaml_content) or {}
@@ -222,12 +220,15 @@ class CodeBookParser:
             disable = []
         disable = [str(d) for d in disable]
 
-        return Frontmatter(
-            title=title,
-            tags=tags,
-            disable=disable,
-            raw=data,
-        ), content_without_frontmatter
+        return (
+            Frontmatter(
+                title=title,
+                tags=tags,
+                disable=disable,
+                raw=data,
+            ),
+            content_without_frontmatter,
+        )
 
     def find_links(self, content: str) -> Iterator[CodeBookLink]:
         """Find all codebook links in the given content.
@@ -460,24 +461,24 @@ class CodeBookParser:
         # Patterns for opening tags that might be incomplete
         incomplete_patterns = [
             # <cicada with attributes but no closing > before </cicada> or EOF
-            (r'<cicada\s+[^>]*$', None),  # <cicada ... at end of content
-            (r'<cicada\s+(?:[^>]*\n)+[^>]*$', None),  # <cicada ... multiline, no >
+            (r"<cicada\s+[^>]*$", None),  # <cicada ... at end of content
+            (r"<cicada\s+(?:[^>]*\n)+[^>]*$", None),  # <cicada ... multiline, no >
             # <cicada ...> without </cicada>
-            (r'<cicada\s+[^>]+>', r'</cicada>'),
+            (r"<cicada\s+[^>]+>", r"</cicada>"),
             # <exec with no closing >
-            (r'<exec\s+[^>]*$', None),
+            (r"<exec\s+[^>]*$", None),
             # <exec ...> without </exec>
-            (r'<exec\s+[^>]+>', r'</exec>'),
+            (r"<exec\s+[^>]+>", r"</exec>"),
             # <div data-codebook with no closing >
             (r'<div\s+data-codebook="[^"]*$', None),
             (r'<div\s+data-codebook="[^"]*"[^>]*$', None),
             # <div data-codebook=...> without </div>
-            (r'<div\s+data-codebook="[^"]*"[^>]*>', r'</div>'),
+            (r'<div\s+data-codebook="[^"]*"[^>]*>', r"</div>"),
             # <span data-codebook with no closing >
             (r'<span\s+data-codebook="[^"]*$', None),
             (r'<span\s+data-codebook="[^"]*"[^>]*$', None),
             # <span data-codebook=...> without </span>
-            (r'<span\s+data-codebook="[^"]*"[^>]*>', r'</span>'),
+            (r'<span\s+data-codebook="[^"]*"[^>]*>', r"</span>"),
         ]
 
         for open_pattern, close_tag in incomplete_patterns:
@@ -488,17 +489,17 @@ class CodeBookParser:
                     return True
                 else:
                     # Check if there's a closing tag after the opening
-                    remaining = content[match.end():]
+                    remaining = content[match.end() :]
                     if close_tag not in remaining:
                         return True
 
         # Check for unclosed quotes in attribute values within tag openings
         # This catches <cicada endpoint="value  (missing closing quote)
         tag_starts = [
-            (r'<cicada\s+', r'>'),
-            (r'<exec\s+', r'>'),
-            (r'<div\s+data-codebook=', r'>'),
-            (r'<span\s+data-codebook=', r'>'),
+            (r"<cicada\s+", r">"),
+            (r"<exec\s+", r">"),
+            (r"<div\s+data-codebook=", r">"),
+            (r"<span\s+data-codebook=", r">"),
         ]
 
         for start_pattern, end_char in tag_starts:

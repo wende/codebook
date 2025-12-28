@@ -174,7 +174,9 @@ class TestCodeBookRenderer:
         assert result.templates_found == 2
         assert result.templates_resolved == 1
         assert result.changed is True
-        assert md_file.read_text() == "[`X`](codebook:server.first) and [`b`](codebook:server.second)"
+        assert (
+            md_file.read_text() == "[`X`](codebook:server.first) and [`b`](codebook:server.second)"
+        )
 
     def test_render_directory_processes_all_md_files(
         self,
@@ -366,9 +368,7 @@ class TestBacklinkUpdates:
         target = temp_dir / "target.md"
 
         source.write_text("[New Link](target.md)")
-        target.write_text(
-            '# Target\n\n--- BACKLINKS ---\n[Old](old.md "codebook:backlink")\n'
-        )
+        target.write_text('# Target\n\n--- BACKLINKS ---\n[Old](old.md "codebook:backlink")\n')
 
         renderer.render_file(source)
 
@@ -386,9 +386,7 @@ class TestBacklinkUpdates:
         target = temp_dir / "target.md"
 
         source.write_text("[Link](target.md)")
-        target.write_text(
-            '# Target\n\n--- BACKLINKS ---\n[Link](source.md "codebook:backlink")\n'
-        )
+        target.write_text('# Target\n\n--- BACKLINKS ---\n[Link](source.md "codebook:backlink")\n')
 
         renderer.render_file(source)
 
@@ -498,9 +496,11 @@ Real content below.
         target_content = target.read_text()
         # Should add real BACKLINKS section at the end (after the content)
         assert "Real content below." in target_content
-        assert target_content.index("Real content below.") < target_content.rfind("--- BACKLINKS ---")
+        assert target_content.index("Real content below.") < target_content.rfind(
+            "--- BACKLINKS ---"
+        )
         # Example in code block should be preserved
-        assert '```markdown\n--- BACKLINKS ---\n[Example]' in target_content
+        assert "```markdown\n--- BACKLINKS ---\n[Example]" in target_content
         # Real backlink should point to source
         assert 'source.md "codebook:backlink")' in target_content
 
@@ -515,15 +515,13 @@ Real content below.
 
         source.write_text("[Link](target.md)")
         # Target mentions the marker in inline code
-        target.write_text(
-            "Use `--- BACKLINKS ---` to start the backlinks section.\n"
-        )
+        target.write_text("Use `--- BACKLINKS ---` to start the backlinks section.\n")
 
         renderer.render_file(source)
 
         target_content = target.read_text()
         # Should add real BACKLINKS section at the end
-        assert '\n--- BACKLINKS ---\n' in target_content
+        assert "\n--- BACKLINKS ---\n" in target_content
         assert 'source.md "codebook:backlink")' in target_content
         # Inline code should be preserved
         assert "Use `--- BACKLINKS ---` to start" in target_content

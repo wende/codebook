@@ -1,6 +1,5 @@
 """Tests for Cicada module."""
 
-
 from codebook.cicada import format_json_value, jq_query
 
 

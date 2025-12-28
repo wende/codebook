@@ -998,7 +998,8 @@ index 0000000..{commit_sha}
 
         # Earlier task
         task1 = tasks_dir / "202412281400-FIRST_TASK.md"
-        task1.write_text("""# First Task
+        task1.write_text(
+            """# First Task
 
 ```diff
 diff --git a/file1.py b/file1.py
@@ -1007,11 +1008,13 @@ diff --git a/file1.py b/file1.py
 @@ -0,0 +1 @@
 +print('file1')
 ```
-""")
+"""
+        )
 
         # Later task
         task2 = tasks_dir / "202412281600-SECOND_TASK.md"
-        task2.write_text("""# Second Task
+        task2.write_text(
+            """# Second Task
 
 ```diff
 diff --git a/file2.py b/file2.py
@@ -1020,7 +1023,8 @@ diff --git a/file2.py b/file2.py
 @@ -0,0 +1 @@
 +print('file2')
 ```
-""")
+"""
+        )
 
         # Run stats
         result = runner.invoke(main, ["task", "stats"])

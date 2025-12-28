@@ -435,6 +435,7 @@ class TestMarkdownLinks:
 
         # Should not find any MARKDOWN_LINK types
         from codebook.parser import LinkType
+
         md_links = [l for l in links if l.link_type == LinkType.MARKDOWN_LINK]
         assert len(md_links) == 0
 

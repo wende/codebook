@@ -523,6 +523,7 @@ def run(ctx: click.Context, config: Path | None) -> None:
         # Wait for servers to start
         if processes:
             import time
+
             time.sleep(1)
 
         # Create client
@@ -636,7 +637,9 @@ def task() -> None:
     pass
 
 
-def _create_task_worktree(title: str, task_name: str, date_prefix: str, scope: Path) -> tuple[Path, Path] | None:
+def _create_task_worktree(
+    title: str, task_name: str, date_prefix: str, scope: Path
+) -> tuple[Path, Path] | None:
     """Create a new git worktree for a task.
 
     Args:
@@ -723,6 +726,7 @@ def _create_task_worktree(title: str, task_name: str, date_prefix: str, scope: P
 
                         # Copy the file content
                         import shutil
+
                         shutil.copy2(src_file, dst_file)
 
             # Revert the scoped changes in the source branch
@@ -775,7 +779,9 @@ def _create_task_worktree(title: str, task_name: str, date_prefix: str, scope: P
     help="Create a new worktree for the task",
 )
 @click.pass_context
-def task_new(ctx: click.Context, title: str, scope: Path, include_all: bool, worktree: bool) -> None:
+def task_new(
+    ctx: click.Context, title: str, scope: Path, include_all: bool, worktree: bool
+) -> None:
     """Create a new task capturing modified files and their diffs.
 
     Creates a task file at .codebook/tasks/YYYYMMDDHHMM-TITLE.md containing
@@ -921,7 +927,9 @@ def task_new(ctx: click.Context, title: str, scope: Path, include_all: bool, wor
             return True
 
         # Check if ALL changed lines are codebook version stamps
-        version_pattern = re.compile(r"Rendered by CodeBook \[`[^`]*`\]\(codebook:codebook\.version\)")
+        version_pattern = re.compile(
+            r"Rendered by CodeBook \[`[^`]*`\]\(codebook:codebook\.version\)"
+        )
         return all(version_pattern.search(line) for line in changed_lines)
 
     # Collect files to process
@@ -1217,18 +1225,18 @@ def task_coverage(path_glob: str, detailed: bool, short: bool) -> None:
             # Only match at the start of lines within diff blocks
             file_paths = set()
             in_diff_block = False
-            for line in content.split('\n'):
+            for line in content.split("\n"):
                 # Check if we're entering a diff block
-                if line.startswith('```diff'):
+                if line.startswith("```diff"):
                     in_diff_block = True
                     continue
                 # Check if we're exiting a diff block
-                if line.startswith('```') and in_diff_block:
+                if line.startswith("```") and in_diff_block:
                     in_diff_block = False
                     continue
                 # Only process diff headers within diff blocks
-                if in_diff_block and line.startswith('diff --git'):
-                    match = re.match(r'^diff --git a/([^\s]+) b/([^\s]+)', line)
+                if in_diff_block and line.startswith("diff --git"):
+                    match = re.match(r"^diff --git a/([^\s]+) b/([^\s]+)", line)
                     if match:
                         # Use the "b/" path (after changes)
                         file_path = match.group(2)
@@ -1240,6 +1248,7 @@ def task_coverage(path_glob: str, detailed: bool, short: bool) -> None:
                 # Parse YYYYMMDDHHMM
                 try:
                     from datetime import datetime
+
                     date_str = task_name[:12]
                     task_date = datetime.strptime(date_str, "%Y%m%d%H%M")
                 except Exception:
@@ -1273,6 +1282,7 @@ def task_coverage(path_glob: str, detailed: bool, short: bool) -> None:
                                 # If we have task date, only include commits after it
                                 if task_date:
                                     from datetime import datetime
+
                                     commit_dt = datetime.fromtimestamp(commit_time)
                                     if commit_dt > task_date:
                                         commit_to_task[commit_sha] = task_name
@@ -1318,7 +1328,8 @@ def task_coverage(path_glob: str, detailed: bool, short: bool) -> None:
     # Filter out task files themselves
     tasks_dir_resolved = tasks_dir.resolve()
     files_to_analyze = [
-        f for f in files_to_analyze
+        f
+        for f in files_to_analyze
         if f.exists() and not str(f.resolve()).startswith(str(tasks_dir_resolved))
     ]
 
@@ -1357,11 +1368,13 @@ def task_coverage(path_glob: str, detailed: bool, short: bool) -> None:
                 elif line.startswith("\t") and current_commit:
                     # Actual code line
                     task_name = task_commits.get(current_commit)
-                    lines_data.append({
-                        "commit": current_commit,
-                        "task": task_name,
-                        "covered": task_name is not None,
-                    })
+                    lines_data.append(
+                        {
+                            "commit": current_commit,
+                            "task": task_name,
+                            "covered": task_name is not None,
+                        }
+                    )
 
             if lines_data:
                 total_lines = len(lines_data)
@@ -1400,10 +1413,7 @@ def task_coverage(path_glob: str, detailed: bool, short: bool) -> None:
     click.echo("-" * 60)
 
     # Sort by coverage percentage (lowest first)
-    sorted_files = sorted(
-        file_coverage.items(),
-        key=lambda x: x[1]["percentage"]
-    )
+    sorted_files = sorted(file_coverage.items(), key=lambda x: x[1]["percentage"])
 
     for file_path, data in sorted_files:
         rel_path = file_path.relative_to(git_root)
@@ -1436,7 +1446,9 @@ def task_coverage(path_glob: str, detailed: bool, short: bool) -> None:
 
             try:
                 file_lines = file_path.read_text(encoding="utf-8").split("\n")
-                for i, (line_data, line_content) in enumerate(zip(data["lines"], file_lines, strict=False), 1):
+                for i, (line_data, line_content) in enumerate(
+                    zip(data["lines"], file_lines, strict=False), 1
+                ):
                     if line_data["covered"]:
                         task_name = line_data["task"]
                         click.echo(f"{i:4} [COVERED by {task_name}] {line_content[:60]}")
@@ -1506,10 +1518,13 @@ def task_stats() -> None:
                 f"{date_part[:4]}-{date_part[4:6]}-{date_part[6:8]} "
                 f"{date_part[8:10]}:{date_part[10:12]}"
             )
-            title_part = task_name[13:] if len(task_name) > 13 and task_name[12] == "-" else task_name
+            title_part = (
+                task_name[13:] if len(task_name) > 13 and task_name[12] == "-" else task_name
+            )
             # Parse timestamp for filtering commits
             try:
                 from datetime import datetime
+
                 datetime.strptime(date_part, "%Y%m%d%H%M").timestamp()
             except Exception:
                 pass
@@ -1520,6 +1535,7 @@ def task_stats() -> None:
             title_part = task_name[9:]
             try:
                 from datetime import datetime
+
                 datetime.strptime(date_part, "%Y%m%d").timestamp()
             except Exception:
                 pass
@@ -1532,20 +1548,20 @@ def task_stats() -> None:
         file_paths = set()
         in_diff_block = False
 
-        for line in content.split('\n'):
+        for line in content.split("\n"):
             # Check if we're entering a diff block
-            if line.startswith('```diff'):
+            if line.startswith("```diff"):
                 in_diff_block = True
                 continue
             # Check if we're exiting a diff block
-            if line.startswith('```') and in_diff_block:
+            if line.startswith("```") and in_diff_block:
                 in_diff_block = False
                 continue
 
             if in_diff_block:
                 # Extract file paths from diff headers
-                if line.startswith('diff --git'):
-                    match = re.match(r'^diff --git a/([^\s]+) b/([^\s]+)', line)
+                if line.startswith("diff --git"):
+                    match = re.match(r"^diff --git a/([^\s]+) b/([^\s]+)", line)
                     if match:
                         # Use the "b/" path (after changes)
                         file_path = match.group(2)
@@ -1595,14 +1611,17 @@ def task_stats() -> None:
                 if result.returncode == 0 and result.stdout.strip():
                     for line in result.stdout.strip().split("\n"):
                         if line:
-                            parts = line.split('\t')
+                            parts = line.split("\t")
                             if len(parts) >= 3:
                                 try:
-                                    added = int(parts[0]) if parts[0] != '-' else 0
-                                    removed = int(parts[1]) if parts[1] != '-' else 0
+                                    added = int(parts[0]) if parts[0] != "-" else 0
+                                    removed = int(parts[1]) if parts[1] != "-" else 0
                                     file_path = parts[2]
                                     # Skip markdown files in .codebook directory
-                                    if not (file_path.startswith('.codebook/') and file_path.endswith('.md')):
+                                    if not (
+                                        file_path.startswith(".codebook/")
+                                        and file_path.endswith(".md")
+                                    ):
                                         total_lines_added += added
                                         total_lines_removed += removed
                                 except ValueError:
@@ -1624,11 +1643,11 @@ def task_stats() -> None:
                     if result.returncode == 0:
                         for line in result.stdout.strip().split("\n"):
                             if line:
-                                parts = line.split('\t')
+                                parts = line.split("\t")
                                 if len(parts) >= 2:
                                     try:
-                                        added = int(parts[0]) if parts[0] != '-' else 0
-                                        removed = int(parts[1]) if parts[1] != '-' else 0
+                                        added = int(parts[0]) if parts[0] != "-" else 0
+                                        removed = int(parts[1]) if parts[1] != "-" else 0
                                         total_lines_added += added
                                         total_lines_removed += removed
                                     except ValueError:

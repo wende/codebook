@@ -107,7 +107,10 @@ class TestCodeBookDiffer:
         md_file.write_text("[`new`](codebook:server.test)")
 
         # Mock renderer to return different content
-        mock_renderer.render_content.return_value = ("[`new`](codebook:server.test)", {"test": "new"})
+        mock_renderer.render_content.return_value = (
+            "[`new`](codebook:server.test)",
+            {"test": "new"},
+        )
 
         result = differ.diff_file(md_file)
 
