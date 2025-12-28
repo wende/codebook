@@ -1666,7 +1666,7 @@ class TestAICommands:
                 assert "not found" in result.output.lower()
 
     def test_ai_review_with_agent_args(self, runner: CliRunner):
-        """Should pass additional arguments to agent."""
+        """Should pass additional arguments to agent before the prompt."""
         with runner.isolated_filesystem() as tmpdir:
             task_file = Path(tmpdir) / "task.md"
             task_file.write_text("Task content")
@@ -1684,6 +1684,10 @@ class TestAICommands:
                 cmd = mock_run.call_args[0][0]
                 assert "--model" in cmd
                 assert "gemini-pro" in cmd
+                # Args should come before --prompt-interactive (the prompt flag)
+                model_idx = cmd.index("--model")
+                prompt_idx = cmd.index("--prompt-interactive")
+                assert model_idx < prompt_idx, "agent_args should come before the prompt"
 
     def test_ai_review_prompt_contains_task_path(self, runner: CliRunner):
         """Should include task path in prompt."""
@@ -1739,3 +1743,48 @@ class TestAICommands:
                 )
 
                 assert result.exit_code == 42
+
+    def test_ai_review_custom_prompt_from_config(self, runner: CliRunner):
+        """Should use custom review_prompt from config file."""
+        with runner.isolated_filesystem() as tmpdir:
+            task_file = Path(tmpdir) / "task.md"
+            task_file.write_text("Task content")
+
+            # Create a custom config with a custom review prompt
+            config_file = Path(tmpdir) / "codebook.yml"
+            config_file.write_text(
+                "ai:\n" "  review_prompt: 'Custom prompt for [TASK_FILE] review'\n"
+            )
+
+            with patch("codebook.cli.subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=0)
+
+                # Change to the directory with the config
+                import os
+
+                original_cwd = os.getcwd()
+                try:
+                    os.chdir(tmpdir)
+                    runner.invoke(
+                        main,
+                        ["ai", "review", "claude", str(task_file)],
+                        catch_exceptions=False,
+                    )
+                finally:
+                    os.chdir(original_cwd)
+
+                mock_run.assert_called_once()
+                cmd = mock_run.call_args[0][0]
+                prompt_idx = cmd.index("--print") + 1
+                prompt = cmd[prompt_idx]
+                # Verify custom prompt is used and placeholder is replaced
+                assert "Custom prompt for" in prompt
+                assert str(task_file.resolve()) in prompt
+
+    def test_ai_review_rejects_directory(self, runner: CliRunner):
+        """Should reject directory as path argument."""
+        with runner.isolated_filesystem() as tmpdir:
+            result = runner.invoke(main, ["ai", "review", "claude", tmpdir])
+
+            assert result.exit_code != 0
+            assert "directory" in result.output.lower() or "file" in result.output.lower()

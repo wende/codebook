@@ -1843,7 +1843,7 @@ def ai_help() -> None:
 
 @ai.command("review")
 @click.argument("agent", type=click.Choice(SUPPORTED_AGENTS))
-@click.argument("path", type=click.Path(exists=True, path_type=Path))
+@click.argument("path", type=click.Path(exists=True, dir_okay=False, path_type=Path))
 @click.argument("agent_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def ai_review(ctx: click.Context, agent: str, path: Path, agent_args: tuple[str, ...]) -> None:
@@ -1898,31 +1898,33 @@ def _build_agent_command(agent: str, prompt: str, agent_args: tuple[str, ...]) -
     Args:
         agent: Name of the agent (claude, codex, gemini, opencode, kimi)
         prompt: The prompt to send to the agent
-        agent_args: Additional arguments for the agent
+        agent_args: Additional arguments for the agent (inserted before prompt)
 
     Returns:
         Command as a list of strings, or None if agent not supported
     """
+    # Agent args are inserted before the prompt to support agents that require
+    # options before the prompt argument
+    args = list(agent_args)
+
     if agent == "claude":
-        # Claude Code CLI: claude --print "prompt"
-        cmd = ["claude", "--print", prompt]
+        # Claude Code CLI: claude [args] --print "prompt"
+        cmd = ["claude", *args, "--print", prompt]
     elif agent == "codex":
-        # OpenAI Codex CLI: codex "prompt"
-        cmd = ["codex", prompt]
+        # OpenAI Codex CLI: codex [args] "prompt"
+        cmd = ["codex", *args, prompt]
     elif agent == "gemini":
-        # Gemini CLI: gemini "prompt"
-        cmd = ["gemini", prompt]
+        # Gemini CLI: gemini [args] --prompt-interactive "prompt"
+        cmd = ["gemini", *args, "--prompt-interactive", prompt]
     elif agent == "opencode":
-        # OpenCode CLI: opencode "prompt"
-        cmd = ["opencode", prompt]
+        # OpenCode CLI: opencode [args] "prompt"
+        cmd = ["opencode", *args, prompt]
     elif agent == "kimi":
-        # Kimi CLI: kimi "prompt"
-        cmd = ["kimi", prompt]
+        # Kimi CLI: kimi [args] --command "prompt"
+        cmd = ["kimi", *args, "--command", prompt]
     else:
         return None
 
-    # Add any additional agent-specific arguments
-    cmd.extend(agent_args)
     return cmd
 
 
