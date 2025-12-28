@@ -630,6 +630,130 @@ def task() -> None:
     pass
 
 
+def _create_task_worktree(title: str, task_name: str, date_prefix: str, scope: Path) -> tuple[Path, Path] | None:
+    """Create a new git worktree for a task.
+    
+    Args:
+        title: Human-readable task title
+        task_name: UPPER_SNAKE_CASE task name
+        date_prefix: YYYYMMDDHHMM timestamp
+        scope: Path to the scope being documented
+        
+    Returns:
+        Tuple of (worktree_path, worktree_scope_path), or None if creation failed
+    """
+    try:
+        # Get git root
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        git_root = Path(result.stdout.strip())
+        
+        # Resolve scope relative to git root
+        scope_resolved = scope.resolve()
+        try:
+            scope_rel = scope_resolved.relative_to(git_root)
+        except ValueError:
+            click.echo(f"Error: Scope {scope} is not within git repository", err=True)
+            return None
+        
+        # Get the root directory name
+        root_dir_name = git_root.name
+        
+        # Create worktree directory name: {rootdir}-{task-title}
+        worktree_name = f"{root_dir_name}-{task_name.lower()}"
+        worktree_path = git_root.parent / worktree_name
+        
+        # Get current branch
+        result = subprocess.run(
+            ["git", "branch", "--show-current"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        current_branch = result.stdout.strip()
+        
+        # Create new branch name for the worktree: task-{task-title}
+        branch_name = f"task-{task_name.lower()}"
+        
+        # Create the worktree
+        result = subprocess.run(
+            ["git", "worktree", "add", "-b", branch_name, str(worktree_path), current_branch],
+            capture_output=True,
+            text=True,
+        )
+        
+        if result.returncode != 0:
+            click.echo(f"Error creating worktree: {result.stderr}", err=True)
+            return None
+            
+        # Get list of modified and untracked files in scope
+        result = subprocess.run(
+            ["git", "status", "--porcelain", str(scope)],
+            capture_output=True,
+            text=True,
+        )
+        
+        if result.returncode == 0 and result.stdout.strip():
+            # Copy uncommitted changes to worktree
+            for line in result.stdout.split("\n"):
+                if line and len(line) >= 3:
+                    status = line[:2]
+                    file_path = line[3:]
+                    
+                    # Handle renamed files
+                    if " -> " in file_path:
+                        file_path = file_path.split(" -> ")[1]
+                    
+                    src_file = git_root / file_path
+                    dst_file = worktree_path / file_path
+                    
+                    if src_file.exists():
+                        # Ensure parent directory exists in worktree
+                        dst_file.parent.mkdir(parents=True, exist_ok=True)
+                        
+                        # Copy the file content
+                        import shutil
+                        shutil.copy2(src_file, dst_file)
+            
+            # Revert the scoped changes in the source branch
+            # Only revert files within the scope
+            subprocess.run(
+                ["git", "checkout", "HEAD", "--", str(scope)],
+                capture_output=True,
+                text=True,
+            )
+            
+            # Also remove any untracked files in scope
+            result = subprocess.run(
+                ["git", "status", "--porcelain", str(scope)],
+                capture_output=True,
+                text=True,
+            )
+            
+            if result.returncode == 0:
+                for line in result.stdout.split("\n"):
+                    if line and line.startswith("??"):
+                        file_path = line[3:]
+                        untracked_file = git_root / file_path
+                        if untracked_file.exists():
+                            untracked_file.unlink()
+        
+        # Return worktree path and the scope path within the worktree
+        worktree_scope = worktree_path / scope_rel
+        return (worktree_path, worktree_scope)
+        
+    except subprocess.CalledProcessError as e:
+        click.echo(f"Git error: {e}", err=True)
+        return None
+    except Exception as e:
+        click.echo(f"Error creating worktree: {e}", err=True)
+        return None
+
+
 @task.command("new")
 @click.argument("title", type=str)
 @click.argument("scope", type=click.Path(exists=True, path_type=Path))
@@ -639,8 +763,13 @@ def task() -> None:
     is_flag=True,
     help="Include all files, not just modified ones",
 )
+@click.option(
+    "--worktree",
+    is_flag=True,
+    help="Create a new worktree for the task",
+)
 @click.pass_context
-def task_new(ctx: click.Context, title: str, scope: Path, include_all: bool) -> None:
+def task_new(ctx: click.Context, title: str, scope: Path, include_all: bool, worktree: bool) -> None:
     """Create a new task capturing modified files and their diffs.
 
     Creates a task file at .codebook/tasks/YYYYMMDDHHMM-TITLE.md containing
@@ -652,10 +781,15 @@ def task_new(ctx: click.Context, title: str, scope: Path, include_all: bool) -> 
     The task is prepended with a generic prompt describing what to be changed.
     This wrapper can be customized by adding task-prefix and task-suffix to codebook.yml.
 
+    With --worktree, creates a new git worktree for the task, copies uncommitted
+    changes to the worktree, and reverts them on the source branch. The task is
+    created in the worktree instead of the source branch.
+
     Example:
         codebook task new "Feature Documentation" ./docs
         codebook task new "API Update" ./README.md
         codebook task new "Full Snapshot" ./docs --all
+        codebook task new "Theme Support" ./docs --worktree
     """
     import re
     from datetime import datetime
@@ -669,6 +803,21 @@ def task_new(ctx: click.Context, title: str, scope: Path, include_all: bool) -> 
 
     # Add datetime prefix (YYYYMMDDHHMM)
     date_prefix = datetime.now().strftime("%Y%m%d%H%M")
+
+    # Handle worktree creation if requested
+    worktree_info = None
+    if worktree:
+        worktree_info = _create_task_worktree(title, task_name, date_prefix, scope)
+        if worktree_info is None:
+            click.echo("Failed to create worktree", err=True)
+            return
+        worktree_path, worktree_scope = worktree_info
+        click.echo(f"Created worktree at {worktree_path}")
+        # Switch to worktree context
+        original_cwd = Path.cwd()
+        os.chdir(worktree_path)
+        # Update scope to point to the worktree location
+        scope = worktree_scope
 
     # Create tasks directory
     tasks_dir = Path(cfg.tasks_dir)

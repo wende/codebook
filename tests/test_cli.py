@@ -1100,3 +1100,148 @@ diff --git a/module2.py b/module2.py
         assert "EMPTY_TASK" in result.output
         assert "Commits:  0" in result.output
         assert "Features: 0" in result.output
+
+    def test_task_new_with_worktree(self, git_repo: Path):
+        """Should create a worktree for the task."""
+        runner = CliRunner()
+
+        # Create and commit a file
+        docs_dir = git_repo / "docs"
+        docs_dir.mkdir()
+        doc_file = docs_dir / "readme.md"
+        doc_file.write_text("Original content")
+        subprocess.run(["git", "add", "."], cwd=git_repo, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "Initial"], cwd=git_repo, capture_output=True)
+
+        # Modify the file
+        doc_file.write_text("Modified content")
+
+        # Create task with worktree
+        result = runner.invoke(
+            main,
+            ["task", "new", "Theme Support", str(docs_dir), "--worktree"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0
+        assert "Created worktree" in result.output
+        assert "Created task:" in result.output
+
+        # Verify worktree was created
+        # Expected format: {rootdir}-theme_support
+        root_dir_name = git_repo.name
+        expected_worktree_name = f"{root_dir_name}-theme_support"
+        worktree_path = git_repo.parent / expected_worktree_name
+        
+        assert worktree_path.exists(), f"Worktree directory not found at {worktree_path}"
+
+        # Verify task file was created in worktree
+        worktree_tasks_dir = worktree_path / ".codebook" / "tasks"
+        assert worktree_tasks_dir.exists()
+        task_files = list(worktree_tasks_dir.glob("*THEME_SUPPORT.md"))
+        assert len(task_files) == 1
+
+        # Verify task contains the diff
+        task_content = task_files[0].read_text()
+        assert "```diff" in task_content
+        assert "Modified content" in task_content
+
+        # Verify original branch has changes reverted
+        original_content = doc_file.read_text()
+        assert original_content == "Original content"
+
+        # Verify worktree has the modified content
+        worktree_doc = worktree_path / "docs" / "readme.md"
+        assert worktree_doc.exists()
+        worktree_content = worktree_doc.read_text()
+        assert worktree_content == "Modified content"
+
+        # Clean up worktree
+        subprocess.run(
+            ["git", "worktree", "remove", str(worktree_path), "--force"],
+            cwd=git_repo,
+            capture_output=True,
+        )
+
+    def test_task_new_with_worktree_untracked_files(self, git_repo: Path):
+        """Should handle untracked files in worktree."""
+        runner = CliRunner()
+
+        # Create docs directory with initial commit
+        docs_dir = git_repo / "docs"
+        docs_dir.mkdir()
+        initial_file = docs_dir / "initial.md"
+        initial_file.write_text("Initial content")
+        subprocess.run(["git", "add", "."], cwd=git_repo, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "Initial"], cwd=git_repo, capture_output=True)
+
+        # Create an untracked file
+        new_doc = docs_dir / "new_feature.md"
+        new_doc.write_text("New feature documentation")
+
+        # Create task with worktree
+        result = runner.invoke(
+            main,
+            ["task", "new", "New Feature", str(docs_dir), "--worktree"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0
+        assert "Created worktree" in result.output
+
+        # Verify worktree was created
+        # Expected format: {rootdir}-new_feature
+        root_dir_name = git_repo.name
+        expected_worktree_name = f"{root_dir_name}-new_feature"
+        worktree_path = git_repo.parent / expected_worktree_name
+        
+        assert worktree_path.exists(), f"Worktree directory not found at {worktree_path}"
+
+        # Verify untracked file was removed from source
+        assert not new_doc.exists()
+
+        # Verify untracked file exists in worktree
+        worktree_doc = worktree_path / "docs" / "new_feature.md"
+        assert worktree_doc.exists()
+        assert worktree_doc.read_text() == "New feature documentation"
+
+        # Clean up worktree
+        subprocess.run(
+            ["git", "worktree", "remove", str(worktree_path), "--force"],
+            cwd=git_repo,
+            capture_output=True,
+        )
+
+    def test_task_new_with_worktree_no_changes(self, git_repo: Path):
+        """Should handle case with no uncommitted changes."""
+        runner = CliRunner()
+
+        # Create and commit a file (no modifications)
+        docs_dir = git_repo / "docs"
+        docs_dir.mkdir()
+        doc_file = docs_dir / "readme.md"
+        doc_file.write_text("Committed content")
+        subprocess.run(["git", "add", "."], cwd=git_repo, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "Initial"], cwd=git_repo, capture_output=True)
+
+        # Try to create task with worktree (no changes)
+        result = runner.invoke(
+            main,
+            ["task", "new", "No Changes", str(docs_dir), "--worktree"],
+            catch_exceptions=False,
+        )
+
+        # Should still create worktree but report no modified files
+        assert "Created worktree" in result.output
+        assert "No modified markdown files found" in result.output
+
+        # Clean up any created worktree
+        root_dir_name = git_repo.name
+        expected_worktree_name = f"{root_dir_name}-no_changes"
+        worktree_path = git_repo.parent / expected_worktree_name
+        if worktree_path.exists():
+            subprocess.run(
+                ["git", "worktree", "remove", str(worktree_path), "--force"],
+                cwd=git_repo,
+                capture_output=True,
+            )

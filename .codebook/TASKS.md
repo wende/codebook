@@ -117,6 +117,18 @@ diff --git a/path/to/file.md b/path/to/file.md
 \`\`\`
 ```
 
+## Worktrees
+```bash
+codebook task new "Theme Support" ./docs --worktree
+```
+
+Creates new worktree for task
+Copies uncommitted doc changes to worktree
+Reverts scoped doc changes on the source branch 
+The task is created in the worktree instead of the source branch.
+This prepares a new isolated environment to work in without affecting the source branch.
+The worktree is created in the `../{rootdir}-{task-title}` directory on a `task-{task-title}` branch 
+
 ## Use Cases
 
 - **Pre-commit review**: Capture state before committing documentation changes
@@ -162,7 +174,7 @@ The stats are calculated for each task by
  - the number of lines covered by the task.
  - features modified by the task 
 
-Rendered by CodeBook [`a308801`](codebook:codebook.version)
+Rendered by CodeBook [`3d86e3c`](codebook:codebook.version)
 
 --- BACKLINKS ---
 [Tasks](README.md "codebook:backlink")
