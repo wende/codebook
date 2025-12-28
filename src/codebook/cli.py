@@ -1792,5 +1792,139 @@ def task_stats() -> None:
     click.echo("=" * 80)
 
 
+# AI Helpers
+SUPPORTED_AGENTS = ["claude", "codex", "gemini", "opencode", "kimi"]
+
+
+@main.group()
+def ai() -> None:
+    """AI helpers for CodeBook tasks.
+
+    Use AI agents to review and work on tasks.
+
+    Example:
+        codebook ai help
+        codebook ai review claude ./codebook/tasks/202512281502-TITLE.md
+    """
+    pass
+
+
+@ai.command("help")
+def ai_help() -> None:
+    """Show help for AI helpers.
+
+    Lists available AI agents and how to use them.
+
+    Example:
+        codebook ai help
+    """
+    click.echo("CodeBook AI Helpers")
+    click.echo("=" * 40)
+    click.echo()
+    click.echo("Available commands:")
+    click.echo("  codebook ai help     Show this help message")
+    click.echo("  codebook ai review   Review a task with an AI agent")
+    click.echo()
+    click.echo("Supported agents:")
+    for agent in SUPPORTED_AGENTS:
+        click.echo(f"  - {agent}")
+    click.echo()
+    click.echo("Usage:")
+    click.echo("  codebook ai review [agent] [path] -- [agent_args]")
+    click.echo()
+    click.echo("Examples:")
+    click.echo("  codebook ai review claude ./codebook/tasks/202512281502-TITLE.md")
+    click.echo(
+        "  codebook ai review gemini ./codebook/tasks/202512281502-TITLE.md -- --model gemini-pro"
+    )
+    click.echo()
+    click.echo("The review prompt can be customized in codebook.yml under 'ai.review_prompt'.")
+
+
+@ai.command("review")
+@click.argument("agent", type=click.Choice(SUPPORTED_AGENTS))
+@click.argument("path", type=click.Path(exists=True, path_type=Path))
+@click.argument("agent_args", nargs=-1, type=click.UNPROCESSED)
+@click.pass_context
+def ai_review(ctx: click.Context, agent: str, path: Path, agent_args: tuple[str, ...]) -> None:
+    """Review a task with an AI agent.
+
+    Starts the specified AI agent with a review prompt for the given task file.
+    The prompt can be customized in codebook.yml under 'ai.review_prompt'.
+
+    AGENT is one of: claude, codex, gemini, opencode, kimi
+
+    PATH is the path to the task file to review.
+
+    AGENT_ARGS are additional arguments passed to the agent command.
+    Use -- to separate them from codebook arguments.
+
+    Example:
+        codebook ai review claude ./codebook/tasks/202512281502-TITLE.md
+        codebook ai review gemini ./codebook/tasks/202512281502-TITLE.md -- --model gemini-pro
+    """
+    # Load config for review prompt
+    cfg = CodeBookConfig.load()
+
+    # Build the prompt by replacing [TASK_FILE] with the actual path
+    prompt = cfg.ai.review_prompt.replace("[TASK_FILE]", str(path.resolve()))
+
+    # Build the agent command
+    agent_cmd = _build_agent_command(agent, prompt, agent_args)
+
+    if agent_cmd is None:
+        click.echo(f"Error: Agent '{agent}' is not properly configured", err=True)
+        sys.exit(1)
+
+    click.echo(f"Starting {agent} to review {path}...")
+    if ctx.obj.get("verbose"):
+        click.echo(f"Command: {' '.join(agent_cmd)}")
+
+    try:
+        # Run the agent command
+        result = subprocess.run(agent_cmd)
+        sys.exit(result.returncode)
+    except FileNotFoundError:
+        click.echo(f"Error: Agent '{agent}' not found. Is it installed?", err=True)
+        sys.exit(1)
+    except Exception as e:
+        click.echo(f"Error running agent: {e}", err=True)
+        sys.exit(1)
+
+
+def _build_agent_command(agent: str, prompt: str, agent_args: tuple[str, ...]) -> list[str] | None:
+    """Build the command to run an AI agent.
+
+    Args:
+        agent: Name of the agent (claude, codex, gemini, opencode, kimi)
+        prompt: The prompt to send to the agent
+        agent_args: Additional arguments for the agent
+
+    Returns:
+        Command as a list of strings, or None if agent not supported
+    """
+    if agent == "claude":
+        # Claude Code CLI: claude --print "prompt"
+        cmd = ["claude", "--print", prompt]
+    elif agent == "codex":
+        # OpenAI Codex CLI: codex "prompt"
+        cmd = ["codex", prompt]
+    elif agent == "gemini":
+        # Gemini CLI: gemini "prompt"
+        cmd = ["gemini", prompt]
+    elif agent == "opencode":
+        # OpenCode CLI: opencode "prompt"
+        cmd = ["opencode", prompt]
+    elif agent == "kimi":
+        # Kimi CLI: kimi "prompt"
+        cmd = ["kimi", prompt]
+    else:
+        return None
+
+    # Add any additional agent-specific arguments
+    cmd.extend(agent_args)
+    return cmd
+
+
 if __name__ == "__main__":
     main()

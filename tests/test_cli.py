@@ -1473,3 +1473,269 @@ Some notes here
         content = task_file.read_text()
         assert "doc2.md" in content
         assert "doc3.md" in content
+
+
+class TestAICommands:
+    """Tests for AI helper commands."""
+
+    @pytest.fixture
+    def runner(self) -> CliRunner:
+        """Create a CLI test runner."""
+        return CliRunner()
+
+    def test_ai_help_command(self, runner: CliRunner):
+        """Should show help for AI helpers."""
+        result = runner.invoke(main, ["ai", "help"])
+
+        assert result.exit_code == 0
+        assert "CodeBook AI Helpers" in result.output
+        assert "Available commands:" in result.output
+        assert "Supported agents:" in result.output
+        assert "claude" in result.output
+        assert "codex" in result.output
+        assert "gemini" in result.output
+        assert "opencode" in result.output
+        assert "kimi" in result.output
+
+    def test_ai_group_help(self, runner: CliRunner):
+        """Should show AI group help."""
+        result = runner.invoke(main, ["ai", "--help"])
+
+        assert result.exit_code == 0
+        assert "AI helpers for CodeBook tasks" in result.output
+        assert "help" in result.output
+        assert "review" in result.output
+
+    def test_ai_review_help(self, runner: CliRunner):
+        """Should show review command help."""
+        result = runner.invoke(main, ["ai", "review", "--help"])
+
+        assert result.exit_code == 0
+        assert "Review a task with an AI agent" in result.output
+        assert "AGENT" in result.output
+        assert "PATH" in result.output
+
+    def test_ai_review_requires_agent(self, runner: CliRunner):
+        """Should require agent argument."""
+        result = runner.invoke(main, ["ai", "review"])
+
+        assert result.exit_code != 0
+        assert "Missing argument" in result.output or "AGENT" in result.output
+
+    def test_ai_review_invalid_agent(self, runner: CliRunner):
+        """Should reject invalid agent."""
+        with runner.isolated_filesystem() as tmpdir:
+            task_file = Path(tmpdir) / "task.md"
+            task_file.write_text("Task content")
+
+            result = runner.invoke(main, ["ai", "review", "invalid_agent", str(task_file)])
+
+            assert result.exit_code != 0
+            assert "Invalid value" in result.output or "invalid_agent" in result.output
+
+    def test_ai_review_requires_path(self, runner: CliRunner):
+        """Should require path argument."""
+        result = runner.invoke(main, ["ai", "review", "claude"])
+
+        assert result.exit_code != 0
+        assert "Missing argument" in result.output or "PATH" in result.output
+
+    def test_ai_review_path_must_exist(self, runner: CliRunner):
+        """Should require path to exist."""
+        result = runner.invoke(main, ["ai", "review", "claude", "/nonexistent/path.md"])
+
+        assert result.exit_code != 0
+
+    def test_ai_review_claude_command(self, runner: CliRunner):
+        """Should build correct command for claude agent."""
+        with runner.isolated_filesystem() as tmpdir:
+            task_file = Path(tmpdir) / "task.md"
+            task_file.write_text("Task content")
+
+            with patch("codebook.cli.subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=0)
+
+                runner.invoke(
+                    main,
+                    ["ai", "review", "claude", str(task_file)],
+                    catch_exceptions=False,
+                )
+
+                # Check that subprocess.run was called
+                mock_run.assert_called_once()
+                cmd = mock_run.call_args[0][0]
+
+                # Verify command structure
+                assert cmd[0] == "claude"
+                assert "--print" in cmd
+                # Prompt should contain task file path
+                prompt_idx = cmd.index("--print") + 1
+                assert str(task_file.resolve()) in cmd[prompt_idx]
+
+    def test_ai_review_codex_command(self, runner: CliRunner):
+        """Should build correct command for codex agent."""
+        with runner.isolated_filesystem() as tmpdir:
+            task_file = Path(tmpdir) / "task.md"
+            task_file.write_text("Task content")
+
+            with patch("codebook.cli.subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=0)
+
+                runner.invoke(
+                    main,
+                    ["ai", "review", "codex", str(task_file)],
+                    catch_exceptions=False,
+                )
+
+                mock_run.assert_called_once()
+                cmd = mock_run.call_args[0][0]
+                assert cmd[0] == "codex"
+
+    def test_ai_review_gemini_command(self, runner: CliRunner):
+        """Should build correct command for gemini agent."""
+        with runner.isolated_filesystem() as tmpdir:
+            task_file = Path(tmpdir) / "task.md"
+            task_file.write_text("Task content")
+
+            with patch("codebook.cli.subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=0)
+
+                runner.invoke(
+                    main,
+                    ["ai", "review", "gemini", str(task_file)],
+                    catch_exceptions=False,
+                )
+
+                mock_run.assert_called_once()
+                cmd = mock_run.call_args[0][0]
+                assert cmd[0] == "gemini"
+
+    def test_ai_review_opencode_command(self, runner: CliRunner):
+        """Should build correct command for opencode agent."""
+        with runner.isolated_filesystem() as tmpdir:
+            task_file = Path(tmpdir) / "task.md"
+            task_file.write_text("Task content")
+
+            with patch("codebook.cli.subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=0)
+
+                runner.invoke(
+                    main,
+                    ["ai", "review", "opencode", str(task_file)],
+                    catch_exceptions=False,
+                )
+
+                mock_run.assert_called_once()
+                cmd = mock_run.call_args[0][0]
+                assert cmd[0] == "opencode"
+
+    def test_ai_review_kimi_command(self, runner: CliRunner):
+        """Should build correct command for kimi agent."""
+        with runner.isolated_filesystem() as tmpdir:
+            task_file = Path(tmpdir) / "task.md"
+            task_file.write_text("Task content")
+
+            with patch("codebook.cli.subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=0)
+
+                runner.invoke(
+                    main,
+                    ["ai", "review", "kimi", str(task_file)],
+                    catch_exceptions=False,
+                )
+
+                mock_run.assert_called_once()
+                cmd = mock_run.call_args[0][0]
+                assert cmd[0] == "kimi"
+
+    def test_ai_review_agent_not_found(self, runner: CliRunner):
+        """Should error when agent is not installed."""
+        with runner.isolated_filesystem() as tmpdir:
+            task_file = Path(tmpdir) / "task.md"
+            task_file.write_text("Task content")
+
+            with patch("codebook.cli.subprocess.run") as mock_run:
+                mock_run.side_effect = FileNotFoundError("Agent not found")
+
+                result = runner.invoke(
+                    main,
+                    ["ai", "review", "claude", str(task_file)],
+                )
+
+                assert result.exit_code != 0
+                assert "not found" in result.output.lower()
+
+    def test_ai_review_with_agent_args(self, runner: CliRunner):
+        """Should pass additional arguments to agent."""
+        with runner.isolated_filesystem() as tmpdir:
+            task_file = Path(tmpdir) / "task.md"
+            task_file.write_text("Task content")
+
+            with patch("codebook.cli.subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=0)
+
+                runner.invoke(
+                    main,
+                    ["ai", "review", "gemini", str(task_file), "--", "--model", "gemini-pro"],
+                    catch_exceptions=False,
+                )
+
+                mock_run.assert_called_once()
+                cmd = mock_run.call_args[0][0]
+                assert "--model" in cmd
+                assert "gemini-pro" in cmd
+
+    def test_ai_review_prompt_contains_task_path(self, runner: CliRunner):
+        """Should include task path in prompt."""
+        with runner.isolated_filesystem() as tmpdir:
+            task_file = Path(tmpdir) / "task.md"
+            task_file.write_text("Task content")
+
+            with patch("codebook.cli.subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=0)
+
+                runner.invoke(
+                    main,
+                    ["ai", "review", "claude", str(task_file)],
+                    catch_exceptions=False,
+                )
+
+                mock_run.assert_called_once()
+                cmd = mock_run.call_args[0][0]
+                # The prompt should contain the resolved task file path
+                prompt_idx = cmd.index("--print") + 1
+                prompt = cmd[prompt_idx]
+                assert str(task_file.resolve()) in prompt
+
+    def test_ai_review_verbose_shows_command(self, runner: CliRunner):
+        """Should show command when verbose is enabled."""
+        with runner.isolated_filesystem() as tmpdir:
+            task_file = Path(tmpdir) / "task.md"
+            task_file.write_text("Task content")
+
+            with patch("codebook.cli.subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=0)
+
+                result = runner.invoke(
+                    main,
+                    ["--verbose", "ai", "review", "claude", str(task_file)],
+                    catch_exceptions=False,
+                )
+
+                assert "Command:" in result.output
+
+    def test_ai_review_propagates_exit_code(self, runner: CliRunner):
+        """Should propagate agent exit code."""
+        with runner.isolated_filesystem() as tmpdir:
+            task_file = Path(tmpdir) / "task.md"
+            task_file.write_text("Task content")
+
+            with patch("codebook.cli.subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=42)
+
+                result = runner.invoke(
+                    main,
+                    ["ai", "review", "claude", str(task_file)],
+                )
+
+                assert result.exit_code == 42
