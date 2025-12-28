@@ -31,7 +31,12 @@ jobs:
     - name: Run codebook coverage
       id: coverage
       run: |
-        COVERAGE=$(python -m codebook.cli task coverage --short 2>&1 || echo "0%")
+        OUTPUT=$(python -m codebook.cli task coverage --short 2>/dev/null || true)
+        # Extract percentage from output like "45.2% (123/456 lines)" or default to "0%"
+        COVERAGE=$(echo "$OUTPUT" | grep -oE '^[0-9]+\.[0-9]+%' | head -1 || echo "0%")
+        if [ -z "$COVERAGE" ]; then
+          COVERAGE="0%"
+        fi
         echo "score=$COVERAGE" >> $GITHUB_OUTPUT
         echo "CodeBook Coverage: $COVERAGE"
 

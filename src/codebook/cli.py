@@ -994,6 +994,167 @@ def task_new(
     click.echo(f"Created task: {task_file} ({file_count} file(s))")
 
 
+@task.command("update")
+@click.argument("task_file", type=click.Path(exists=True, path_type=Path))
+@click.argument("scope", type=click.Path(exists=True, path_type=Path))
+@click.pass_context
+def task_update(ctx: click.Context, task_file: Path, scope: Path) -> None:
+    """Update a task file with new diffs to documentation files.
+
+    Appends new diffs for modified documentation files in scope that aren't
+    already included in the task file.
+
+    Example:
+        codebook task update ./tasks/202412281530-FEATURE.md ./docs
+    """
+    import re
+
+    # Get modified files from git
+    def get_modified_files(scope_path: Path) -> tuple[set[Path], set[Path]]:
+        """Get list of modified and untracked files in scope."""
+        try:
+            result = subprocess.run(
+                ["git", "status", "--porcelain", str(scope_path)],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode != 0:
+                return set(), set()
+            modified = set()
+            untracked = set()
+            for line in result.stdout.split("\n"):
+                if line and len(line) >= 3:
+                    status = line[:2]
+                    file_path = line[3:]
+                    if " -> " in file_path:
+                        file_path = file_path.split(" -> ")[1]
+                    resolved = Path(file_path).resolve()
+                    if status == "??":
+                        untracked.add(resolved)
+                    else:
+                        modified.add(resolved)
+            return modified, untracked
+        except Exception:
+            return set(), set()
+
+    def get_git_diff(file_path: Path, is_untracked: bool = False) -> str | None:
+        """Get raw git diff for a file."""
+        try:
+            if is_untracked:
+                result = subprocess.run(
+                    ["git", "diff", "--no-index", "/dev/null", str(file_path)],
+                    capture_output=True,
+                    text=True,
+                )
+                if result.stdout.strip():
+                    return result.stdout
+                return None
+            else:
+                result = subprocess.run(
+                    ["git", "diff", str(file_path)],
+                    capture_output=True,
+                    text=True,
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    return result.stdout
+                return None
+        except Exception:
+            return None
+
+    def extract_files_from_task(content: str) -> set[str]:
+        """Extract file paths already documented in the task."""
+        files = set()
+        # Match diff headers like "diff --git a/path/to/file b/path/to/file"
+        diff_pattern = re.compile(r"^diff --git a/([^\s]+) b/([^\s]+)", re.MULTILINE)
+        for match in diff_pattern.finditer(content):
+            files.add(match.group(2))  # Use the "b/" path
+        return files
+
+    # Read existing task content
+    task_content = task_file.read_text(encoding="utf-8")
+
+    # Extract files already in task
+    existing_files = extract_files_from_task(task_content)
+
+    # Collect files to process
+    if scope.is_file():
+        candidates = [scope]
+    else:
+        candidates = sorted(scope.glob("**/*.md"))
+
+    # Get modified/untracked files
+    modified, untracked_files = get_modified_files(scope)
+    all_changed = modified | untracked_files
+
+    # Filter to modified files not already in task
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        git_root = Path(result.stdout.strip())
+    except Exception:
+        click.echo("Error: Not in a git repository", err=True)
+        return
+
+    files_to_add = []
+    for f in candidates:
+        if f.resolve() not in all_changed:
+            continue
+        try:
+            rel_path = str(f.resolve().relative_to(git_root))
+            if rel_path not in existing_files:
+                files_to_add.append(f)
+        except ValueError:
+            continue
+
+    if not files_to_add:
+        click.echo("No new modified documentation files to add", err=True)
+        return
+
+    # Build new diff content
+    new_diffs = []
+    file_count = 0
+
+    for file_path in files_to_add:
+        is_untracked = file_path.resolve() in untracked_files
+        diff_output = get_git_diff(file_path, is_untracked=is_untracked)
+
+        if not diff_output:
+            continue
+
+        file_count += 1
+        new_diffs.append("```diff\n")
+        new_diffs.append(diff_output)
+        if not diff_output.endswith("\n"):
+            new_diffs.append("\n")
+        new_diffs.append("```\n\n")
+
+    if file_count == 0:
+        click.echo("No new diffs to add", err=True)
+        return
+
+    # Append to task file (before any footer sections like "--- FEATURE TASK ---")
+    footer_markers = ["--- FEATURE TASK ---", "--- NOTES ---", "--- SOLUTION ---"]
+    insert_pos = len(task_content)
+
+    for marker in footer_markers:
+        pos = task_content.find(marker)
+        if pos != -1 and pos < insert_pos:
+            insert_pos = pos
+
+    # Insert new diffs before footer or at end
+    if insert_pos < len(task_content):
+        updated_content = task_content[:insert_pos] + "".join(new_diffs) + task_content[insert_pos:]
+    else:
+        updated_content = task_content.rstrip() + "\n\n" + "".join(new_diffs)
+
+    task_file.write_text(updated_content, encoding="utf-8")
+    click.echo(f"Updated task: {task_file} (+{file_count} file(s))")
+
+
 @task.command("list")
 def task_list() -> None:
     """List all existing tasks.
@@ -1181,7 +1342,6 @@ def task_coverage(path_glob: str, detailed: bool, short: bool) -> None:
         codebook task coverage --detailed
         codebook task coverage --short
     """
-    import re
 
     cfg = CodeBookConfig.load()
     tasks_dir = Path(cfg.tasks_dir)
@@ -1203,12 +1363,13 @@ def task_coverage(path_glob: str, detailed: bool, short: bool) -> None:
         click.echo("Error: Not in a git repository", err=True)
         return
 
-    # Extract file paths and commits from task files
+    # Extract commits from task files using git blame
     def extract_commits_from_tasks() -> dict[str, str]:
-        """Extract commits associated with task files.
+        """Extract commits associated with task files using git blame.
 
-        For each task, finds the files mentioned in diffs and gets the
-        commits that modified those files after the task was created.
+        Runs git blame on each task file to find all commits that have
+        modified the task. This connects task documentation to the actual
+        commits that implemented the task.
 
         Returns:
             Dict mapping commit SHA (short) to task name
@@ -1218,80 +1379,32 @@ def task_coverage(path_glob: str, detailed: bool, short: bool) -> None:
 
         for task_file in task_files:
             task_name = task_file.stem
-            content = task_file.read_text(encoding="utf-8")
 
-            # Extract file paths from diff headers
-            # Format: "diff --git a/path/to/file b/path/to/file"
-            # Only match at the start of lines within diff blocks
-            file_paths = set()
-            in_diff_block = False
-            for line in content.split("\n"):
-                # Check if we're entering a diff block
-                if line.startswith("```diff"):
-                    in_diff_block = True
-                    continue
-                # Check if we're exiting a diff block
-                if line.startswith("```") and in_diff_block:
-                    in_diff_block = False
-                    continue
-                # Only process diff headers within diff blocks
-                if in_diff_block and line.startswith("diff --git"):
-                    match = re.match(r"^diff --git a/([^\s]+) b/([^\s]+)", line)
-                    if match:
-                        # Use the "b/" path (after changes)
-                        file_path = match.group(2)
-                        file_paths.add(file_path)
+            try:
+                # Get relative path from git root for blame
+                rel_path = task_file.resolve().relative_to(git_root)
 
-            # Get task creation time from filename (YYYYMMDDHHMM format)
-            task_date = None
-            if len(task_name) >= 12 and task_name[:12].isdigit():
-                # Parse YYYYMMDDHHMM
-                try:
-                    from datetime import datetime
+                # Run git blame to get all commits that touched this task file
+                cmd = ["git", "blame", "--porcelain", str(rel_path)]
+                result = subprocess.run(
+                    cmd,
+                    cwd=git_root,
+                    capture_output=True,
+                    text=True,
+                )
 
-                    date_str = task_name[:12]
-                    task_date = datetime.strptime(date_str, "%Y%m%d%H%M")
-                except Exception:
-                    pass
+                if result.returncode == 0:
+                    # Parse porcelain output - each line group starts with commit SHA
+                    for line in result.stdout.split("\n"):
+                        # Lines starting with a 40-char hex are commit SHAs
+                        if len(line) >= 40 and all(c in "0123456789abcdef" for c in line[:40]):
+                            commit_sha = line[:7]  # Short SHA
+                            # Skip uncommitted changes (all zeros)
+                            if commit_sha != "0000000":
+                                commit_to_task[commit_sha] = task_name
 
-            # For each file in the task, get commits made after task creation
-            for file_path in file_paths:
-                abs_file_path = git_root / file_path
-                if not abs_file_path.exists():
-                    continue
-
-                try:
-                    # Get all commits for this file
-                    cmd = ["git", "log", "--format=%H %ct", "--", str(file_path)]
-                    result = subprocess.run(
-                        cmd,
-                        cwd=git_root,
-                        capture_output=True,
-                        text=True,
-                    )
-
-                    if result.returncode == 0:
-                        for line in result.stdout.strip().split("\n"):
-                            if not line:
-                                continue
-                            parts = line.split()
-                            if len(parts) >= 2:
-                                commit_sha = parts[0][:7]  # Short SHA
-                                commit_time = int(parts[1])
-
-                                # If we have task date, only include commits after it
-                                if task_date:
-                                    from datetime import datetime
-
-                                    commit_dt = datetime.fromtimestamp(commit_time)
-                                    if commit_dt > task_date:
-                                        commit_to_task[commit_sha] = task_name
-                                else:
-                                    # No date info, include all commits for this file
-                                    commit_to_task[commit_sha] = task_name
-
-                except Exception:
-                    continue
+            except Exception:
+                continue
 
         return commit_to_task
 
@@ -1300,7 +1413,7 @@ def task_coverage(path_glob: str, detailed: bool, short: bool) -> None:
 
     if not task_commits:
         click.echo("No commits found in task files.", err=True)
-        click.echo("Tasks must contain git diffs with commit SHAs.", err=True)
+        click.echo("Task files must be committed to git for coverage tracking.", err=True)
         return
 
     click.echo(f"Found {len(task_commits)} commits in {len(set(task_commits.values()))} tasks\n")
