@@ -52,6 +52,7 @@ class TestCodeBookDiffer:
         """Create a mock renderer."""
         renderer = MagicMock(spec=CodeBookRenderer)
         renderer.render_content.return_value = ("content", {})
+        renderer._is_in_tasks_dir.return_value = False  # Don't filter any files by default
         return renderer
 
     @pytest.fixture

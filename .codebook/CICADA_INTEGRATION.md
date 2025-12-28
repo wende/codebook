@@ -212,3 +212,6 @@ src/codebook/cicada.py:86
 tests/test_cicada.py:8
 ```
 </cicada>
+
+--- BACKLINKS ---
+[Cicada Integration](README.md "codebook:backlink")

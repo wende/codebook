@@ -527,3 +527,123 @@ Real content below.
         assert 'source.md "codebook:backlink")' in target_content
         # Inline code should be preserved
         assert "Use `--- BACKLINKS ---` to start" in target_content
+
+
+class TestTasksDirFiltering:
+    """Tests for tasks_dir filtering functionality."""
+
+    @pytest.fixture
+    def mock_client(self) -> MagicMock:
+        """Create a mock CodeBook client."""
+        client = MagicMock(spec=CodeBookClient)
+        client.resolve_batch.return_value = {}
+        return client
+
+    def test_is_in_tasks_dir_returns_true_for_task_file(
+        self,
+        mock_client: MagicMock,
+        temp_dir: Path,
+    ):
+        """Should return True for files in tasks directory."""
+        from codebook.config import CodeBookConfig
+        
+        # Create tasks directory
+        tasks_dir = temp_dir / ".codebook" / "tasks"
+        tasks_dir.mkdir(parents=True)
+        
+        # Create a task file
+        task_file = tasks_dir / "20231201-FEATURE.md"
+        task_file.write_text("# Task")
+        
+        # Create config with tasks_dir
+        config = CodeBookConfig(tasks_dir=str(tasks_dir))
+        renderer = CodeBookRenderer(mock_client, config=config)
+        
+        assert renderer._is_in_tasks_dir(task_file) is True
+
+    def test_is_in_tasks_dir_returns_false_for_regular_file(
+        self,
+        mock_client: MagicMock,
+        temp_dir: Path,
+    ):
+        """Should return False for files outside tasks directory."""
+        from codebook.config import CodeBookConfig
+        
+        # Create tasks directory
+        tasks_dir = temp_dir / ".codebook" / "tasks"
+        tasks_dir.mkdir(parents=True)
+        
+        # Create a regular file outside tasks
+        regular_file = temp_dir / ".codebook" / "README.md"
+        regular_file.write_text("# README")
+        
+        # Create config with tasks_dir
+        config = CodeBookConfig(tasks_dir=str(tasks_dir))
+        renderer = CodeBookRenderer(mock_client, config=config)
+        
+        assert renderer._is_in_tasks_dir(regular_file) is False
+
+    def test_render_directory_excludes_tasks_dir(
+        self,
+        mock_client: MagicMock,
+        temp_dir: Path,
+    ):
+        """Should exclude files in tasks_dir when rendering directory."""
+        from codebook.config import CodeBookConfig
+        
+        # Create directory structure
+        codebook_dir = temp_dir / ".codebook"
+        codebook_dir.mkdir()
+        tasks_dir = codebook_dir / "tasks"
+        tasks_dir.mkdir()
+        
+        # Create regular files
+        (codebook_dir / "README.md").write_text("# README")
+        (codebook_dir / "GUIDE.md").write_text("# Guide")
+        
+        # Create task files
+        (tasks_dir / "20231201-FEATURE.md").write_text("# Task 1")
+        (tasks_dir / "20231202-BUGFIX.md").write_text("# Task 2")
+        
+        # Create config
+        config = CodeBookConfig(tasks_dir=str(tasks_dir))
+        renderer = CodeBookRenderer(mock_client, config=config)
+        
+        # Render directory
+        results = renderer.render_directory(codebook_dir, recursive=True)
+        
+        # Should only process regular files, not task files
+        assert len(results) == 2
+        processed_files = {r.path.name for r in results}
+        assert processed_files == {"README.md", "GUIDE.md"}
+
+    def test_render_directory_with_nested_tasks_dir(
+        self,
+        mock_client: MagicMock,
+        temp_dir: Path,
+    ):
+        """Should exclude nested tasks_dir files."""
+        from codebook.config import CodeBookConfig
+        
+        # Create nested structure
+        docs_dir = temp_dir / "docs"
+        docs_dir.mkdir()
+        tasks_dir = temp_dir / "tasks"
+        tasks_dir.mkdir()
+        
+        # Create files
+        (docs_dir / "api.md").write_text("# API")
+        (tasks_dir / "task.md").write_text("# Task")
+        (temp_dir / "README.md").write_text("# README")
+        
+        # Create config
+        config = CodeBookConfig(tasks_dir=str(tasks_dir))
+        renderer = CodeBookRenderer(mock_client, config=config)
+        
+        # Render from root
+        results = renderer.render_directory(temp_dir, recursive=True)
+        
+        # Should exclude task file
+        assert len(results) == 2
+        processed_files = {r.path.name for r in results}
+        assert processed_files == {"api.md", "README.md"}

@@ -18,6 +18,7 @@ from watchdog.events import FileSystemEventHandler, FileModifiedEvent, FileCreat
 
 from .parser import CodeBookParser
 from .renderer import CodeBookRenderer
+from .config import CodeBookConfig
 
 logger = logging.getLogger(__name__)
 
@@ -34,16 +35,19 @@ class DebouncedHandler(FileSystemEventHandler):
         self,
         callback: Callable[[Path], None],
         debounce_delay: float = 0.5,
+        should_ignore: Callable[[Path], bool] | None = None,
     ):
         """Initialize the handler.
 
         Args:
             callback: Function to call with the file path when triggered
             debounce_delay: Seconds to wait after last modification
+            should_ignore: Optional function to check if a path should be ignored
         """
         super().__init__()
         self.callback = callback
         self.debounce_delay = debounce_delay
+        self.should_ignore = should_ignore
         self._pending: dict[str, float] = {}
         self._lock = threading.Lock()
         self._timer: threading.Timer | None = None
@@ -57,6 +61,9 @@ class DebouncedHandler(FileSystemEventHandler):
         if path.suffix.lower() != ".md":
             return
 
+        if self.should_ignore and self.should_ignore(path):
+            return
+
         self._schedule_callback(path)
 
     def on_created(self, event: FileCreatedEvent) -> None:
@@ -66,6 +73,9 @@ class DebouncedHandler(FileSystemEventHandler):
 
         path = Path(event.src_path)
         if path.suffix.lower() != ".md":
+            return
+
+        if self.should_ignore and self.should_ignore(path):
             return
 
         self._schedule_callback(path)
@@ -130,6 +140,7 @@ class CodeBookWatcher:
         renderer: CodeBookRenderer,
         debounce_delay: float = 0.5,
         on_render: Callable[[Path], None] | None = None,
+        config: CodeBookConfig | None = None,
     ):
         """Initialize the watcher.
 
@@ -137,10 +148,12 @@ class CodeBookWatcher:
             renderer: Renderer to use for processing files
             debounce_delay: Seconds to wait after last modification
             on_render: Optional callback after file is rendered
+            config: Optional CodeBook configuration (loaded if not provided)
         """
         self.renderer = renderer
         self.debounce_delay = debounce_delay
         self.on_render = on_render
+        self.config = config or CodeBookConfig.load()
         self._observer: Observer | None = None
         self._watching_paths: set[Path] = set()
         self._recently_rendered: dict[str, float] = {}  # Track recently rendered files
@@ -213,6 +226,7 @@ class CodeBookWatcher:
         handler = DebouncedHandler(
             callback=self._handle_file_change,
             debounce_delay=self.debounce_delay,
+            should_ignore=self.renderer._is_in_tasks_dir,
         )
 
         self._observer.schedule(handler, str(directory), recursive=recursive)

@@ -25,8 +25,8 @@ index 4c69e00..daf7c4b 100644
  
  ---
  
--Rendered by CodeBook [`549dabd`](codebook:codebook.version)
-+Rendered by CodeBook [`549dabd`](codebook:codebook.version)
+-Rendered by CodeBook [`cc99d25`](codebook:codebook.version)
++Rendered by CodeBook [`cc99d25`](codebook:codebook.version)
 ```
 
 ```diff
@@ -49,8 +49,8 @@ index c49be94..59fc3d4 100644
  | Metric    | Value                               |
  | --------- | ----------------------------------- |
  | Templates | [`42`](codebook:project.file_count) |
--| Version   | [`549dabd`](codebook:codebook.version)  |
-+| Version   | [`549dabd`](codebook:codebook.version)  |
+-| Version   | [`cc99d25`](codebook:codebook.version)  |
++| Version   | [`cc99d25`](codebook:codebook.version)  |
  
  ## Documentation Files
  
@@ -58,7 +58,7 @@ index c49be94..59fc3d4 100644
  
  ---
  
--Rendered by CodeBook [`549dabd`](codebook:codebook.version)
-+Rendered by CodeBook [`549dabd`](codebook:codebook.version)
+-Rendered by CodeBook [`cc99d25`](codebook:codebook.version)
++Rendered by CodeBook [`cc99d25`](codebook:codebook.version)
 ```
 

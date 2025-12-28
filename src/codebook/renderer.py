@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING
 
 from .parser import CodeBookParser, Frontmatter, LinkType
 from .client import CodeBookClient
+from .config import CodeBookConfig
 
 
 def get_codebook_version() -> str:
@@ -123,6 +124,7 @@ class CodeBookRenderer:
         client: CodeBookClient,
         kernel: CodeBookKernel | None = None,
         cicada: CicadaClient | None = None,
+        config: CodeBookConfig | None = None,
     ):
         """Initialize the renderer.
 
@@ -130,11 +132,13 @@ class CodeBookRenderer:
             client: HTTP client for resolving templates
             kernel: Optional Jupyter kernel for executing code blocks
             cicada: Optional Cicada client for code exploration queries
+            config: Optional CodeBook configuration (loaded if not provided)
         """
         self.client = client
         self.kernel = kernel
         self.cicada = cicada
         self.parser = CodeBookParser()
+        self.config = config or CodeBookConfig.load()
 
     def render_file(self, path: Path, dry_run: bool = False) -> RenderResult:
         """Render a single markdown file.
@@ -544,6 +548,23 @@ class CodeBookRenderer:
 
         return updated
 
+    def _is_in_tasks_dir(self, file_path: Path) -> bool:
+        """Check if a file path is within the tasks directory.
+
+        Args:
+            file_path: Path to check
+
+        Returns:
+            True if the file is within the configured tasks_dir
+        """
+        try:
+            tasks_dir = Path(self.config.tasks_dir).resolve()
+            file_resolved = file_path.resolve()
+            # Check if file_path is relative to tasks_dir
+            return tasks_dir in file_resolved.parents or file_resolved == tasks_dir
+        except (ValueError, OSError):
+            return False
+
     def render_directory(
         self,
         directory: Path,
@@ -551,6 +572,8 @@ class CodeBookRenderer:
         dry_run: bool = False,
     ) -> list[RenderResult]:
         """Render all markdown files in a directory.
+
+        Automatically excludes files in the configured tasks_dir.
 
         Args:
             directory: Path to the directory
@@ -572,7 +595,7 @@ class CodeBookRenderer:
         pattern = "**/*.md" if recursive else "*.md"
 
         for md_file in sorted(directory.glob(pattern)):
-            if md_file.is_file():
+            if md_file.is_file() and not self._is_in_tasks_dir(md_file):
                 result = self.render_file(md_file, dry_run=dry_run)
                 results.append(result)
 

@@ -188,6 +188,8 @@ class CodeBookDiffer:
     ) -> DiffResult:
         """Generate combined diff for all markdown files in a directory.
 
+        Automatically excludes files in the configured tasks_dir.
+
         Args:
             directory: Path to the directory
             ref: Git ref to compare against (default: HEAD)
@@ -206,7 +208,7 @@ class CodeBookDiffer:
         pattern = "**/*.md" if recursive else "*.md"
 
         for md_file in sorted(directory.glob(pattern)):
-            if md_file.is_file():
+            if md_file.is_file() and not self.renderer._is_in_tasks_dir(md_file):
                 result = self.diff_file(md_file, ref)
 
                 if result.error:

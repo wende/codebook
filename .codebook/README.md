@@ -52,7 +52,7 @@ codebook run
 
 | Metric    | Value                               |
 | --------- | ----------------------------------- |
-| Version   | [`549dabd`](codebook:codebook.version)  |
+| Version   | [`cc99d25`](codebook:codebook.version)  |
 
 ## Documentation Files
 
@@ -60,4 +60,4 @@ codebook run
 
 ---
  
-Rendered by CodeBook [`549dabd`](codebook:codebook.version)
+Rendered by CodeBook [`cc99d25`](codebook:codebook.version)

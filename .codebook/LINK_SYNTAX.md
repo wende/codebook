@@ -22,10 +22,11 @@ The project has [`1000`](codebook:metrics.files_indexed) files indexed.
 For inline and multiline HTML contexts:
 
 ```html
-<span data-codebook="TEMPLATE">VALUE</span>
-<div data-codebook="TEMPLATE">
-MULTILINE CONTENT
-</div>
+<codebook file="TEMPLATE">VALUE</codebook>
+<codebook file="examples.config">
+server:
+  port: 3000
+</codebook>
 ```
 
 **Example:**
@@ -80,10 +81,10 @@ Use <codebook:TEMPLATES> to list all available templates.
 Returns the current CodeBook version (git tag/SHA):
 
 ```markdown
-[`549dabd`](codebook:codebook.version)
+[`08bb5c1`](codebook:codebook.version)
 ```
 
-**Current version:** [`549dabd`](codebook:codebook.version)
+**Current version:** [`08bb5c1`](codebook:codebook.version)
 
 ## Template Resolution
 
@@ -96,7 +97,7 @@ Results are cached based on the `cache_ttl` setting.
 
 ---
 
-Rendered by CodeBook [`549dabd`](codebook:codebook.version)
+Rendered by CodeBook [`08bb5c1`](codebook:codebook.version)
 
 --- BACKLINKS ---
 [Link Syntax](README.md "codebook:backlink")
