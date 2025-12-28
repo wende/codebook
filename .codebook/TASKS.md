@@ -149,9 +149,20 @@ The score is calculated by the percentage of covered lines divided by the total 
 
 E.g `95.4% (9847/10327 lines)`
 
----
+## Stats
 
-Rendered by CodeBook [`45ea58b`](codebook:codebook.version)
+---
+To get the stats of the tasks, run:
+```bash
+codebook task stats
+```
+This will show the stats of the tasks sorted by the data from the most recent
+The stats are calculated for each task by 
+ - the number of commits, 
+ - the number of lines covered by the task.
+ - features modified by the task 
+
+Rendered by CodeBook [`a308801`](codebook:codebook.version)
 
 --- BACKLINKS ---
 [Tasks](README.md "codebook:backlink")

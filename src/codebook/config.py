@@ -39,6 +39,7 @@ DEFAULT_TASK_SUFFIX = """\
 After completing the task, please update the task file with:
 - Description of the feature task that was requested
 - Short description of the changes that were made and why
+Include implemenentation details how the task was implemented.
 Do not include code snippets. Only describe the functional changes that were made.
 Do not remove diff lines from the task file.
 --- FEATURE TASK ---

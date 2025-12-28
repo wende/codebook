@@ -1060,11 +1060,25 @@ def task_coverage(path_glob: str, detailed: bool, short: bool) -> None:
 
             # Extract file paths from diff headers
             # Format: "diff --git a/path/to/file b/path/to/file"
+            # Only match at the start of lines within diff blocks
             file_paths = set()
-            for match in re.finditer(r"diff --git a/([^\s]+) b/([^\s]+)", content):
-                # Use the "b/" path (after changes)
-                file_path = match.group(2)
-                file_paths.add(file_path)
+            in_diff_block = False
+            for line in content.split('\n'):
+                # Check if we're entering a diff block
+                if line.startswith('```diff'):
+                    in_diff_block = True
+                    continue
+                # Check if we're exiting a diff block
+                if line.startswith('```') and in_diff_block:
+                    in_diff_block = False
+                    continue
+                # Only process diff headers within diff blocks
+                if in_diff_block and line.startswith('diff --git'):
+                    match = re.match(r'^diff --git a/([^\s]+) b/([^\s]+)', line)
+                    if match:
+                        # Use the "b/" path (after changes)
+                        file_path = match.group(2)
+                        file_paths.add(file_path)
 
             # Get task creation time from filename (YYYYMMDDHHMM format)
             task_date = None
@@ -1280,6 +1294,210 @@ def task_coverage(path_glob: str, detailed: bool, short: bool) -> None:
 
     click.echo()
     click.echo("=" * 60)
+
+
+@task.command("stats")
+def task_stats() -> None:
+    """Show statistics for all tasks.
+
+    Displays stats for each task sorted by date (most recent first):
+    - Number of commits associated with the task
+    - Number of lines covered by the task
+    - Features (files) modified by the task
+
+    Example:
+        codebook task stats
+    """
+    import re
+    from collections import defaultdict
+
+    cfg = CodeBookConfig.load()
+    tasks_dir = Path(cfg.tasks_dir)
+
+    if not tasks_dir.exists():
+        click.echo("No tasks directory found.", err=True)
+        return
+
+    # Get git root
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        git_root = Path(result.stdout.strip())
+    except Exception:
+        click.echo("Error: Not in a git repository", err=True)
+        return
+
+    task_files = sorted(tasks_dir.glob("*.md"), reverse=True)  # Most recent first
+
+    if not task_files:
+        click.echo("No tasks found.", err=True)
+        return
+
+    click.echo("Task Statistics")
+    click.echo("=" * 80)
+    click.echo()
+
+    for task_file in task_files:
+        task_name = task_file.stem
+        content = task_file.read_text(encoding="utf-8")
+
+        # Parse task date from filename (YYYYMMDDHHMM format)
+        task_date_str = None
+        task_timestamp = None
+        if len(task_name) >= 12 and task_name[:12].isdigit():
+            date_part = task_name[:12]
+            task_date_str = (
+                f"{date_part[:4]}-{date_part[4:6]}-{date_part[6:8]} "
+                f"{date_part[8:10]}:{date_part[10:12]}"
+            )
+            title_part = task_name[13:] if len(task_name) > 13 and task_name[12] == "-" else task_name
+            # Parse timestamp for filtering commits
+            try:
+                from datetime import datetime
+                task_timestamp = datetime.strptime(date_part, "%Y%m%d%H%M").timestamp()
+            except Exception:
+                pass
+        elif len(task_name) > 9 and task_name[8] == "-" and task_name[:8].isdigit():
+            # Old format (YYYYMMDD-)
+            date_part = task_name[:8]
+            task_date_str = f"{date_part[:4]}-{date_part[4:6]}-{date_part[6:8]}"
+            title_part = task_name[9:]
+            try:
+                from datetime import datetime
+                task_timestamp = datetime.strptime(date_part, "%Y%m%d").timestamp()
+            except Exception:
+                pass
+        else:
+            title_part = task_name
+            task_date_str = "Unknown date"
+
+        # Extract file paths from diff headers
+        # Format: "diff --git a/path/to/file b/path/to/file"
+        file_paths = set()
+        in_diff_block = False
+        
+        for line in content.split('\n'):
+            # Check if we're entering a diff block
+            if line.startswith('```diff'):
+                in_diff_block = True
+                continue
+            # Check if we're exiting a diff block
+            if line.startswith('```') and in_diff_block:
+                in_diff_block = False
+                continue
+            
+            if in_diff_block:
+                # Extract file paths from diff headers
+                if line.startswith('diff --git'):
+                    match = re.match(r'^diff --git a/([^\s]+) b/([^\s]+)', line)
+                    if match:
+                        # Use the "b/" path (after changes)
+                        file_path = match.group(2)
+                        file_paths.add(file_path)
+
+        # Get commits that touched the task file itself
+        # These are the commits that implemented the task
+        commits = set()
+        commit_full_shas = set()
+        
+        try:
+            # Get git log for the task file itself
+            cmd = ["git", "log", "--format=%H", "--follow", "--", str(task_file)]
+            result = subprocess.run(
+                cmd,
+                cwd=git_root,
+                capture_output=True,
+                text=True,
+            )
+            
+            if result.returncode == 0 and result.stdout.strip():
+                for line in result.stdout.strip().split("\n"):
+                    if line:
+                        full_sha = line.strip()
+                        commits.add(full_sha[:7])
+                        commit_full_shas.add(full_sha)
+        except Exception:
+            pass
+
+        # Count total lines changed
+        total_lines_added = 0
+        total_lines_removed = 0
+        is_ongoing = len(commits) == 0
+        
+        if is_ongoing:
+            # Task has no commits yet - show current diff to HEAD for all files
+            # Get all uncommitted changes (not just the files mentioned in the task)
+            try:
+                # Get diff stats for all uncommitted changes
+                result = subprocess.run(
+                    ["git", "diff", "--numstat", "HEAD"],
+                    cwd=git_root,
+                    capture_output=True,
+                    text=True,
+                )
+                
+                if result.returncode == 0 and result.stdout.strip():
+                    for line in result.stdout.strip().split("\n"):
+                        if line:
+                            parts = line.split('\t')
+                            if len(parts) >= 3:
+                                try:
+                                    added = int(parts[0]) if parts[0] != '-' else 0
+                                    removed = int(parts[1]) if parts[1] != '-' else 0
+                                    file_path = parts[2]
+                                    # Skip markdown files in .codebook directory
+                                    if not (file_path.startswith('.codebook/') and file_path.endswith('.md')):
+                                        total_lines_added += added
+                                        total_lines_removed += removed
+                                except ValueError:
+                                    pass
+            except Exception:
+                pass
+        else:
+            # Count lines from commits
+            for commit_sha in commit_full_shas:
+                try:
+                    # Get the diff stats for this commit
+                    result = subprocess.run(
+                        ["git", "show", "--numstat", "--pretty=format:", commit_sha],
+                        cwd=git_root,
+                        capture_output=True,
+                        text=True,
+                    )
+                    
+                    if result.returncode == 0:
+                        for line in result.stdout.strip().split("\n"):
+                            if line:
+                                parts = line.split('\t')
+                                if len(parts) >= 2:
+                                    try:
+                                        added = int(parts[0]) if parts[0] != '-' else 0
+                                        removed = int(parts[1]) if parts[1] != '-' else 0
+                                        total_lines_added += added
+                                        total_lines_removed += removed
+                                    except ValueError:
+                                        # Skip binary files or invalid lines
+                                        pass
+                except Exception:
+                    continue
+
+        # Display task stats
+        status = " (ONGOING)" if is_ongoing else ""
+        click.echo(f"[{task_date_str}] {title_part}{status}")
+        click.echo(f"  Commits:  {len(commits)}")
+        click.echo(f"  Lines:    +{total_lines_added} -{total_lines_removed}")
+        click.echo(f"  Features: {len(file_paths)}")
+        if file_paths:
+            click.echo(f"  Files:")
+            for fp in sorted(file_paths):
+                click.echo(f"    - {fp}")
+        click.echo()
+
+    click.echo("=" * 80)
 
 
 if __name__ == "__main__":

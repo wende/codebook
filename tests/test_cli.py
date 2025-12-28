@@ -899,3 +899,204 @@ index 0000000..{commit_sha}
         # Should NOT have the detailed table
         assert "File Coverage:" not in result.output
         assert "====" not in result.output
+
+    def test_task_stats_no_tasks(self, runner: CliRunner):
+        """Should error when no tasks directory exists."""
+        with runner.isolated_filesystem():
+            result = runner.invoke(main, ["task", "stats"])
+            assert "No tasks directory found" in result.output
+
+    def test_task_stats_not_git_repo(self, runner: CliRunner):
+        """Should error when not in a git repository."""
+        with runner.isolated_filesystem() as tmpdir:
+            tasks_dir = Path(tmpdir) / ".codebook" / "tasks"
+            tasks_dir.mkdir(parents=True)
+            (tasks_dir / "test.md").write_text("test")
+
+            result = runner.invoke(main, ["task", "stats"])
+            assert "Not in a git repository" in result.output
+
+    def test_task_stats_basic(self, git_repo: Path):
+        """Should show basic task statistics."""
+        runner = CliRunner()
+
+        # Create a source file and commit it
+        src_file = git_repo / "feature.py"
+        src_file.write_text("def feature():\n    return True\n")
+        subprocess.run(["git", "add", "feature.py"], cwd=git_repo, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Add feature"],
+            cwd=git_repo,
+            capture_output=True,
+        )
+
+        # Get the commit SHA
+        result_sha = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=git_repo,
+            capture_output=True,
+            text=True,
+        )
+        commit_sha = result_sha.stdout.strip()
+
+        # Create a task file
+        tasks_dir = git_repo / ".codebook" / "tasks"
+        tasks_dir.mkdir(parents=True)
+        task_file = tasks_dir / "202412281530-ADD_FEATURE.md"
+        task_content = f"""# Add Feature
+
+```diff
+diff --git a/feature.py b/feature.py
+index 0000000..{commit_sha}
+--- a/feature.py
++++ b/feature.py
+@@ -0,0 +1,2 @@
++def feature():
++    return True
+```
+"""
+        task_file.write_text(task_content)
+
+        # Run stats
+        result = runner.invoke(main, ["task", "stats"])
+
+        assert result.exit_code == 0
+        assert "Task Statistics" in result.output
+        assert "2024-12-28 15:30" in result.output
+        assert "ADD_FEATURE" in result.output
+        assert "Commits:" in result.output
+        assert "Lines:" in result.output
+        assert "Features:" in result.output
+        assert "feature.py" in result.output
+
+    def test_task_stats_multiple_tasks(self, git_repo: Path):
+        """Should show stats for multiple tasks sorted by date."""
+        runner = CliRunner()
+
+        # Create two source files and commit them
+        file1 = git_repo / "file1.py"
+        file1.write_text("print('file1')\n")
+        subprocess.run(["git", "add", "file1.py"], cwd=git_repo, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Add file1"],
+            cwd=git_repo,
+            capture_output=True,
+        )
+
+        file2 = git_repo / "file2.py"
+        file2.write_text("print('file2')\n")
+        subprocess.run(["git", "add", "file2.py"], cwd=git_repo, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Add file2"],
+            cwd=git_repo,
+            capture_output=True,
+        )
+
+        # Create task files
+        tasks_dir = git_repo / ".codebook" / "tasks"
+        tasks_dir.mkdir(parents=True)
+
+        # Earlier task
+        task1 = tasks_dir / "202412281400-FIRST_TASK.md"
+        task1.write_text("""# First Task
+
+```diff
+diff --git a/file1.py b/file1.py
+--- a/file1.py
++++ b/file1.py
+@@ -0,0 +1 @@
++print('file1')
+```
+""")
+
+        # Later task
+        task2 = tasks_dir / "202412281600-SECOND_TASK.md"
+        task2.write_text("""# Second Task
+
+```diff
+diff --git a/file2.py b/file2.py
+--- a/file2.py
++++ b/file2.py
+@@ -0,0 +1 @@
++print('file2')
+```
+""")
+
+        # Run stats
+        result = runner.invoke(main, ["task", "stats"])
+
+        assert result.exit_code == 0
+        # Should show both tasks
+        assert "FIRST_TASK" in result.output
+        assert "SECOND_TASK" in result.output
+        # Most recent first
+        output_lines = result.output.split("\n")
+        first_task_idx = next(i for i, line in enumerate(output_lines) if "FIRST_TASK" in line)
+        second_task_idx = next(i for i, line in enumerate(output_lines) if "SECOND_TASK" in line)
+        assert second_task_idx < first_task_idx  # SECOND_TASK appears first (more recent)
+
+    def test_task_stats_multiple_files(self, git_repo: Path):
+        """Should count multiple features in a single task."""
+        runner = CliRunner()
+
+        # Create multiple source files
+        file1 = git_repo / "module1.py"
+        file1.write_text("# Module 1\n")
+        file2 = git_repo / "module2.py"
+        file2.write_text("# Module 2\n")
+
+        subprocess.run(["git", "add", "."], cwd=git_repo, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Add modules"],
+            cwd=git_repo,
+            capture_output=True,
+        )
+
+        # Create a task file with multiple files
+        tasks_dir = git_repo / ".codebook" / "tasks"
+        tasks_dir.mkdir(parents=True)
+        task_file = tasks_dir / "202412281530-MULTI_FILE.md"
+        task_content = """# Multi File Task
+
+```diff
+diff --git a/module1.py b/module1.py
+--- a/module1.py
++++ b/module1.py
+@@ -0,0 +1 @@
++# Module 1
+```
+
+```diff
+diff --git a/module2.py b/module2.py
+--- a/module2.py
++++ b/module2.py
+@@ -0,0 +1 @@
++# Module 2
+```
+"""
+        task_file.write_text(task_content)
+
+        # Run stats
+        result = runner.invoke(main, ["task", "stats"])
+
+        assert result.exit_code == 0
+        assert "MULTI_FILE" in result.output
+        assert "Features: 2" in result.output
+        assert "module1.py" in result.output
+        assert "module2.py" in result.output
+
+    def test_task_stats_empty_tasks(self, git_repo: Path):
+        """Should handle tasks with no files."""
+        runner = CliRunner()
+
+        tasks_dir = git_repo / ".codebook" / "tasks"
+        tasks_dir.mkdir(parents=True)
+        task_file = tasks_dir / "202412281530-EMPTY_TASK.md"
+        task_file.write_text("# Empty Task\n\nNo diffs here.\n")
+
+        result = runner.invoke(main, ["task", "stats"])
+
+        assert result.exit_code == 0
+        assert "EMPTY_TASK" in result.output
+        assert "Commits:  0" in result.output
+        assert "Features: 0" in result.output
