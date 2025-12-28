@@ -68,6 +68,19 @@ cicada:
 
   # Auto-start Cicada server
   start: true
+
+# AI helpers configuration
+ai:
+  # Custom prompt for `codebook ai review` command
+  # Use [TASK_FILE] placeholder for task file path
+  review_prompt: |
+    You are a helpful assistant that reviews the task and provides feedback.
+    You are given a task file that contains a diff of the changes that were made to the codebase.
+    You need to read the original feature documents that were changed, as well as the diff, and provide feedback on the changes that were made to the codebase. Make sure the documentation describes accurately the changes' functionality.
+    Append your feedback to the task file starting with the --- REVIEW YYYYMMDDHHMM --- on top. Do not change any other parts of the task file.
+
+
+    This is the task file: [TASK_FILE]
 ```
 
 ## Minimal Configuration
@@ -120,6 +133,21 @@ backend:
   start: false
 cicada:
   enabled: false
+```
+
+### Custom AI Review Prompt
+
+```yaml
+watch_dir: .codebook
+ai:
+  review_prompt: |
+    Review this task for completeness and accuracy.
+    Focus on:
+    1. Are all requirements addressed?
+    2. Is the documentation clear?
+    3. Are there any edge cases missing?
+
+    Task file: [TASK_FILE]
 ```
 
 ## CLI Options

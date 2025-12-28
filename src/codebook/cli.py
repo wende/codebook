@@ -1328,7 +1328,13 @@ def task_delete(title: str | None, force: bool) -> None:
     is_flag=True,
     help="Show only the coverage score",
 )
-def task_coverage(path_glob: str, detailed: bool, short: bool) -> None:
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    help="Output coverage data as JSON (for CI integration)",
+)
+def task_coverage(path_glob: str, detailed: bool, short: bool, output_json: bool) -> None:
     """Analyze task coverage for the project.
 
     Shows what percentage of code lines are covered by task documentation.
@@ -1415,7 +1421,8 @@ def task_coverage(path_glob: str, detailed: bool, short: bool) -> None:
 
         return commit_to_task
 
-    click.echo("Extracting commits from task files...")
+    if not output_json:
+        click.echo("Extracting commits from task files...")
     task_commits = extract_commits_from_tasks()
 
     if not task_commits:
@@ -1423,7 +1430,10 @@ def task_coverage(path_glob: str, detailed: bool, short: bool) -> None:
         click.echo("Task files must be committed to git for coverage tracking.", err=True)
         return
 
-    click.echo(f"Found {len(task_commits)} commits in {len(set(task_commits.values()))} tasks\n")
+    if not output_json:
+        click.echo(
+            f"Found {len(task_commits)} commits in {len(set(task_commits.values()))} tasks\n"
+        )
 
     # Get all files to analyze based on path glob
     scope_path = Path(path_glob).resolve()
@@ -1457,7 +1467,8 @@ def task_coverage(path_glob: str, detailed: bool, short: bool) -> None:
         click.echo("No files to analyze in scope.", err=True)
         return
 
-    click.echo(f"Analyzing {len(files_to_analyze)} file(s)...\n")
+    if not output_json:
+        click.echo(f"Analyzing {len(files_to_analyze)} file(s)...\n")
 
     # Analyze coverage per file
     file_coverage: dict[Path, dict[str, any]] = {}
@@ -1521,6 +1532,28 @@ def task_coverage(path_glob: str, detailed: bool, short: bool) -> None:
     # If --short flag, just print the score and exit
     if short:
         click.echo(f"{overall_pct:.1f}% ({total_covered}/{total_lines} lines)")
+        return
+
+    # If --json flag, output JSON and exit
+    if output_json:
+        import json
+
+        json_output = {
+            "overall": {
+                "percentage": round(overall_pct, 1),
+                "covered": total_covered,
+                "total": total_lines,
+            },
+            "files": {
+                str(fp.relative_to(git_root)): {
+                    "percentage": round(data["percentage"], 1),
+                    "covered": data["covered"],
+                    "total": data["total"],
+                }
+                for fp, data in file_coverage.items()
+            },
+        }
+        click.echo(json.dumps(json_output))
         return
 
     # Display summary
@@ -1790,6 +1823,144 @@ def task_stats() -> None:
         click.echo()
 
     click.echo("=" * 80)
+
+
+# AI Helpers
+SUPPORTED_AGENTS = ["claude", "codex", "gemini", "opencode", "kimi"]
+
+
+@main.group()
+def ai() -> None:
+    """AI helpers for CodeBook tasks.
+
+    Use AI agents to review and work on tasks.
+
+    Example:
+        codebook ai help
+        codebook ai review claude ./codebook/tasks/202512281502-TITLE.md
+    """
+    pass
+
+
+@ai.command("help")
+def ai_help() -> None:
+    """Show help for AI helpers.
+
+    Lists available AI agents and how to use them.
+
+    Example:
+        codebook ai help
+    """
+    click.echo("CodeBook AI Helpers")
+    click.echo("=" * 40)
+    click.echo()
+    click.echo("Available commands:")
+    click.echo("  codebook ai help     Show this help message")
+    click.echo("  codebook ai review   Review a task with an AI agent")
+    click.echo()
+    click.echo("Supported agents:")
+    for agent in SUPPORTED_AGENTS:
+        click.echo(f"  - {agent}")
+    click.echo()
+    click.echo("Usage:")
+    click.echo("  codebook ai review [agent] [path] -- [agent_args]")
+    click.echo()
+    click.echo("Examples:")
+    click.echo("  codebook ai review claude ./codebook/tasks/202512281502-TITLE.md")
+    click.echo(
+        "  codebook ai review gemini ./codebook/tasks/202512281502-TITLE.md -- --model gemini-pro"
+    )
+    click.echo()
+    click.echo("The review prompt can be customized in codebook.yml under 'ai.review_prompt'.")
+
+
+@ai.command("review")
+@click.argument("agent", type=click.Choice(SUPPORTED_AGENTS))
+@click.argument("path", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.argument("agent_args", nargs=-1, type=click.UNPROCESSED)
+@click.pass_context
+def ai_review(ctx: click.Context, agent: str, path: Path, agent_args: tuple[str, ...]) -> None:
+    """Review a task with an AI agent.
+
+    Starts the specified AI agent with a review prompt for the given task file.
+    The prompt can be customized in codebook.yml under 'ai.review_prompt'.
+
+    AGENT is one of: claude, codex, gemini, opencode, kimi
+
+    PATH is the path to the task file to review.
+
+    AGENT_ARGS are additional arguments passed to the agent command.
+    Use -- to separate them from codebook arguments.
+
+    Example:
+        codebook ai review claude ./codebook/tasks/202512281502-TITLE.md
+        codebook ai review gemini ./codebook/tasks/202512281502-TITLE.md -- --model gemini-pro
+    """
+    # Load config for review prompt
+    cfg = CodeBookConfig.load()
+
+    # Build the prompt by replacing [TASK_FILE] with the actual path
+    prompt = cfg.ai.review_prompt.replace("[TASK_FILE]", str(path.resolve()))
+
+    # Build the agent command
+    agent_cmd = _build_agent_command(agent, prompt, agent_args)
+
+    if agent_cmd is None:
+        click.echo(f"Error: Agent '{agent}' is not properly configured", err=True)
+        sys.exit(1)
+
+    click.echo(f"Starting {agent} to review {path}...")
+    if ctx.obj.get("verbose"):
+        click.echo(f"Command: {' '.join(agent_cmd)}")
+
+    try:
+        # Run the agent command
+        # Security note: Using list format (not shell=True) protects against shell injection.
+        # The agent name is constrained to SUPPORTED_AGENTS via click.Choice, and the prompt/args
+        # come from user-controlled config and CLI input, which is expected behavior.
+        result = subprocess.run(agent_cmd)
+        sys.exit(result.returncode)
+    except FileNotFoundError:
+        click.echo(f"Error: Agent '{agent}' not found. Is it installed?", err=True)
+        sys.exit(1)
+    except Exception as e:
+        click.echo(f"Error running agent: {e}", err=True)
+        sys.exit(1)
+
+
+# Agent command configurations: maps agent name to (executable, prompt_flag or None)
+# If prompt_flag is None, the prompt is passed as a positional argument
+AGENT_COMMANDS: dict[str, tuple[str, str | None]] = {
+    "claude": ("claude", "--print"),  # claude [args] --print "prompt"
+    "codex": ("codex", None),  # codex [args] "prompt"
+    "gemini": ("gemini", "--prompt-interactive"),  # gemini [args] --prompt-interactive "prompt"
+    "opencode": ("opencode", None),  # opencode [args] "prompt"
+    "kimi": ("kimi", "--command"),  # kimi [args] --command "prompt"
+}
+
+
+def _build_agent_command(agent: str, prompt: str, agent_args: tuple[str, ...]) -> list[str] | None:
+    """Build the command to run an AI agent.
+
+    Args:
+        agent: Name of the agent (claude, codex, gemini, opencode, kimi)
+        prompt: The prompt to send to the agent
+        agent_args: Additional arguments for the agent (inserted before prompt)
+
+    Returns:
+        Command as a list of strings, or None if agent not supported
+    """
+    if agent not in AGENT_COMMANDS:
+        return None
+
+    executable, prompt_flag = AGENT_COMMANDS[agent]
+    args = list(agent_args)
+
+    # Build command: executable [args] [prompt_flag] prompt
+    if prompt_flag:
+        return [executable, *args, prompt_flag, prompt]
+    else:
+        return [executable, *args, prompt]
 
 
 if __name__ == "__main__":

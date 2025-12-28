@@ -8,7 +8,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from click.testing import CliRunner
 
-from codebook.cli import main
+from codebook.cli import _build_agent_command, main
+from codebook.config import DEFAULT_REVIEW_PROMPT, AIConfig, CodeBookConfig
 
 # Import helper from conftest (pytest loads fixtures automatically, but we need explicit import)
 sys.path.insert(0, str(Path(__file__).parent))
@@ -944,6 +945,71 @@ index 0000000..{commit_sha}
         assert "File Coverage:" not in result.output
         assert "====" not in result.output
 
+    def test_task_coverage_json_flag(self, git_repo: Path):
+        """Should output JSON with --json flag."""
+        import json
+
+        runner = CliRunner()
+
+        # Create a source file and commit it
+        src_file = git_repo / "test.py"
+        src_file.write_text("print('hello')\n")
+        subprocess.run(["git", "add", "test.py"], cwd=git_repo, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Add test"],
+            cwd=git_repo,
+            capture_output=True,
+        )
+
+        # Get the commit SHA
+        result_sha = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=git_repo,
+            capture_output=True,
+            text=True,
+        )
+        commit_sha = result_sha.stdout.strip()
+
+        # Create a task file
+        tasks_dir = git_repo / "tasks"
+        tasks_dir.mkdir(parents=True)
+        task_file = tasks_dir / "202412281530-TEST.md"
+        task_content = f"""# Test
+
+```diff
+diff --git a/test.py b/test.py
+index 0000000..{commit_sha}
+--- a/test.py
++++ b/test.py
+@@ -0,0 +1 @@
++print('hello')
+```
+"""
+        task_file.write_text(task_content)
+
+        # Commit the task file so git blame can find it
+        subprocess.run(["git", "add", str(task_file)], cwd=git_repo, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Add task"],
+            cwd=git_repo,
+            capture_output=True,
+        )
+
+        # Run coverage with --json flag
+        result = runner.invoke(main, ["task", "coverage", str(git_repo), "--json"])
+
+        assert result.exit_code == 0
+        # Output should be valid JSON
+        data = json.loads(result.output.strip())
+        assert "overall" in data
+        assert "files" in data
+        assert "percentage" in data["overall"]
+        assert "covered" in data["overall"]
+        assert "total" in data["overall"]
+        # Should NOT have any non-JSON output
+        assert "Extracting commits" not in result.output
+        assert "Analyzing" not in result.output
+
     def test_task_stats_no_tasks(self, runner: CliRunner):
         """Should error when no tasks directory exists."""
         with runner.isolated_filesystem():
@@ -1473,3 +1539,454 @@ Some notes here
         content = task_file.read_text()
         assert "doc2.md" in content
         assert "doc3.md" in content
+
+
+class TestAICommands:
+    """Tests for AI helper commands."""
+
+    @pytest.fixture
+    def runner(self) -> CliRunner:
+        """Create a CLI test runner."""
+        return CliRunner()
+
+    @pytest.fixture
+    def ai_review_env(self, runner: CliRunner):
+        """Set up environment for AI review tests with task file and mocked subprocess.
+
+        Yields a tuple of (runner, task_file, mock_run) for use in tests.
+        """
+        from contextlib import contextmanager
+
+        @contextmanager
+        def create_env(task_content: str = "Task content"):
+            with runner.isolated_filesystem() as tmpdir:
+                task_file = Path(tmpdir) / "task.md"
+                task_file.write_text(task_content)
+
+                with patch("codebook.cli.subprocess.run") as mock_run:
+                    mock_run.return_value = MagicMock(returncode=0)
+                    yield runner, task_file, mock_run
+
+        return create_env
+
+    def test_ai_help_command(self, runner: CliRunner):
+        """Should show help for AI helpers."""
+        result = runner.invoke(main, ["ai", "help"])
+
+        assert result.exit_code == 0
+        assert "CodeBook AI Helpers" in result.output
+        assert "Available commands:" in result.output
+        assert "Supported agents:" in result.output
+        assert "claude" in result.output
+        assert "codex" in result.output
+        assert "gemini" in result.output
+        assert "opencode" in result.output
+        assert "kimi" in result.output
+
+    def test_ai_group_help(self, runner: CliRunner):
+        """Should show AI group help."""
+        result = runner.invoke(main, ["ai", "--help"])
+
+        assert result.exit_code == 0
+        assert "AI helpers for CodeBook tasks" in result.output
+        assert "help" in result.output
+        assert "review" in result.output
+
+    def test_ai_review_help(self, runner: CliRunner):
+        """Should show review command help."""
+        result = runner.invoke(main, ["ai", "review", "--help"])
+
+        assert result.exit_code == 0
+        assert "Review a task with an AI agent" in result.output
+        assert "AGENT" in result.output
+        assert "PATH" in result.output
+
+    def test_ai_review_requires_agent(self, runner: CliRunner):
+        """Should require agent argument."""
+        result = runner.invoke(main, ["ai", "review"])
+
+        assert result.exit_code != 0
+        assert "Missing argument" in result.output or "AGENT" in result.output
+
+    def test_ai_review_invalid_agent(self, runner: CliRunner):
+        """Should reject invalid agent."""
+        with runner.isolated_filesystem() as tmpdir:
+            task_file = Path(tmpdir) / "task.md"
+            task_file.write_text("Task content")
+
+            result = runner.invoke(main, ["ai", "review", "invalid_agent", str(task_file)])
+
+            assert result.exit_code != 0
+            assert "Invalid value" in result.output or "invalid_agent" in result.output
+
+    def test_ai_review_requires_path(self, runner: CliRunner):
+        """Should require path argument."""
+        result = runner.invoke(main, ["ai", "review", "claude"])
+
+        assert result.exit_code != 0
+        assert "Missing argument" in result.output or "PATH" in result.output
+
+    def test_ai_review_path_must_exist(self, runner: CliRunner):
+        """Should require path to exist."""
+        result = runner.invoke(main, ["ai", "review", "claude", "/nonexistent/path.md"])
+
+        assert result.exit_code != 0
+
+    def test_ai_review_claude_command(self, runner: CliRunner):
+        """Should build correct command for claude agent."""
+        with runner.isolated_filesystem() as tmpdir:
+            task_file = Path(tmpdir) / "task.md"
+            task_file.write_text("Task content")
+
+            with patch("codebook.cli.subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=0)
+
+                runner.invoke(
+                    main,
+                    ["ai", "review", "claude", str(task_file)],
+                    catch_exceptions=False,
+                )
+
+                # Check that subprocess.run was called
+                mock_run.assert_called_once()
+                cmd = mock_run.call_args[0][0]
+
+                # Verify command structure
+                assert cmd[0] == "claude"
+                assert "--print" in cmd
+                # Prompt should contain task file path
+                prompt_idx = cmd.index("--print") + 1
+                assert str(task_file.resolve()) in cmd[prompt_idx]
+
+    def test_ai_review_codex_command(self, runner: CliRunner):
+        """Should build correct command for codex agent."""
+        with runner.isolated_filesystem() as tmpdir:
+            task_file = Path(tmpdir) / "task.md"
+            task_file.write_text("Task content")
+
+            with patch("codebook.cli.subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=0)
+
+                runner.invoke(
+                    main,
+                    ["ai", "review", "codex", str(task_file)],
+                    catch_exceptions=False,
+                )
+
+                mock_run.assert_called_once()
+                cmd = mock_run.call_args[0][0]
+                assert cmd[0] == "codex"
+
+    def test_ai_review_gemini_command(self, runner: CliRunner):
+        """Should build correct command for gemini agent."""
+        with runner.isolated_filesystem() as tmpdir:
+            task_file = Path(tmpdir) / "task.md"
+            task_file.write_text("Task content")
+
+            with patch("codebook.cli.subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=0)
+
+                runner.invoke(
+                    main,
+                    ["ai", "review", "gemini", str(task_file)],
+                    catch_exceptions=False,
+                )
+
+                mock_run.assert_called_once()
+                cmd = mock_run.call_args[0][0]
+                assert cmd[0] == "gemini"
+
+    def test_ai_review_opencode_command(self, runner: CliRunner):
+        """Should build correct command for opencode agent."""
+        with runner.isolated_filesystem() as tmpdir:
+            task_file = Path(tmpdir) / "task.md"
+            task_file.write_text("Task content")
+
+            with patch("codebook.cli.subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=0)
+
+                runner.invoke(
+                    main,
+                    ["ai", "review", "opencode", str(task_file)],
+                    catch_exceptions=False,
+                )
+
+                mock_run.assert_called_once()
+                cmd = mock_run.call_args[0][0]
+                assert cmd[0] == "opencode"
+
+    def test_ai_review_kimi_command(self, runner: CliRunner):
+        """Should build correct command for kimi agent."""
+        with runner.isolated_filesystem() as tmpdir:
+            task_file = Path(tmpdir) / "task.md"
+            task_file.write_text("Task content")
+
+            with patch("codebook.cli.subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=0)
+
+                runner.invoke(
+                    main,
+                    ["ai", "review", "kimi", str(task_file)],
+                    catch_exceptions=False,
+                )
+
+                mock_run.assert_called_once()
+                cmd = mock_run.call_args[0][0]
+                assert cmd[0] == "kimi"
+
+    def test_ai_review_agent_not_found(self, runner: CliRunner):
+        """Should error when agent is not installed."""
+        with runner.isolated_filesystem() as tmpdir:
+            task_file = Path(tmpdir) / "task.md"
+            task_file.write_text("Task content")
+
+            with patch("codebook.cli.subprocess.run") as mock_run:
+                mock_run.side_effect = FileNotFoundError("Agent not found")
+
+                result = runner.invoke(
+                    main,
+                    ["ai", "review", "claude", str(task_file)],
+                )
+
+                assert result.exit_code != 0
+                assert "not found" in result.output.lower()
+
+    def test_ai_review_with_agent_args(self, runner: CliRunner):
+        """Should pass additional arguments to agent before the prompt."""
+        with runner.isolated_filesystem() as tmpdir:
+            task_file = Path(tmpdir) / "task.md"
+            task_file.write_text("Task content")
+
+            with patch("codebook.cli.subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=0)
+
+                runner.invoke(
+                    main,
+                    ["ai", "review", "gemini", str(task_file), "--", "--model", "gemini-pro"],
+                    catch_exceptions=False,
+                )
+
+                mock_run.assert_called_once()
+                cmd = mock_run.call_args[0][0]
+                assert "--model" in cmd
+                assert "gemini-pro" in cmd
+                # Args should come before --prompt-interactive (the prompt flag)
+                model_idx = cmd.index("--model")
+                prompt_idx = cmd.index("--prompt-interactive")
+                assert model_idx < prompt_idx, "agent_args should come before the prompt"
+
+    def test_ai_review_prompt_contains_task_path(self, runner: CliRunner):
+        """Should include task path in prompt."""
+        with runner.isolated_filesystem() as tmpdir:
+            task_file = Path(tmpdir) / "task.md"
+            task_file.write_text("Task content")
+
+            with patch("codebook.cli.subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=0)
+
+                runner.invoke(
+                    main,
+                    ["ai", "review", "claude", str(task_file)],
+                    catch_exceptions=False,
+                )
+
+                mock_run.assert_called_once()
+                cmd = mock_run.call_args[0][0]
+                # The prompt should contain the resolved task file path
+                prompt_idx = cmd.index("--print") + 1
+                prompt = cmd[prompt_idx]
+                assert str(task_file.resolve()) in prompt
+
+    def test_ai_review_verbose_shows_command(self, runner: CliRunner):
+        """Should show command when verbose is enabled."""
+        with runner.isolated_filesystem() as tmpdir:
+            task_file = Path(tmpdir) / "task.md"
+            task_file.write_text("Task content")
+
+            with patch("codebook.cli.subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=0)
+
+                result = runner.invoke(
+                    main,
+                    ["--verbose", "ai", "review", "claude", str(task_file)],
+                    catch_exceptions=False,
+                )
+
+                assert "Command:" in result.output
+
+    def test_ai_review_propagates_exit_code(self, runner: CliRunner):
+        """Should propagate agent exit code."""
+        with runner.isolated_filesystem() as tmpdir:
+            task_file = Path(tmpdir) / "task.md"
+            task_file.write_text("Task content")
+
+            with patch("codebook.cli.subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=42)
+
+                result = runner.invoke(
+                    main,
+                    ["ai", "review", "claude", str(task_file)],
+                )
+
+                assert result.exit_code == 42
+
+    def test_ai_review_custom_prompt_from_config(self, runner: CliRunner):
+        """Should use custom review_prompt from config file."""
+        with runner.isolated_filesystem() as tmpdir:
+            task_file = Path(tmpdir) / "task.md"
+            task_file.write_text("Task content")
+
+            # Create a custom config with a custom review prompt
+            config_file = Path(tmpdir) / "codebook.yml"
+            config_file.write_text(
+                "ai:\n" "  review_prompt: 'Custom prompt for [TASK_FILE] review'\n"
+            )
+
+            with patch("codebook.cli.subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=0)
+
+                # Change to the directory with the config
+                import os
+
+                original_cwd = os.getcwd()
+                try:
+                    os.chdir(tmpdir)
+                    runner.invoke(
+                        main,
+                        ["ai", "review", "claude", str(task_file)],
+                        catch_exceptions=False,
+                    )
+                finally:
+                    os.chdir(original_cwd)
+
+                mock_run.assert_called_once()
+                cmd = mock_run.call_args[0][0]
+                prompt_idx = cmd.index("--print") + 1
+                prompt = cmd[prompt_idx]
+                # Verify custom prompt is used and placeholder is replaced
+                assert "Custom prompt for" in prompt
+                assert str(task_file.resolve()) in prompt
+
+    def test_ai_review_rejects_directory(self, runner: CliRunner):
+        """Should reject directory as path argument."""
+        with runner.isolated_filesystem() as tmpdir:
+            result = runner.invoke(main, ["ai", "review", "claude", tmpdir])
+
+            assert result.exit_code != 0
+            assert "directory" in result.output.lower() or "file" in result.output.lower()
+
+    def test_ai_review_generic_exception(self, runner: CliRunner):
+        """Should handle generic exceptions from subprocess.run."""
+        with runner.isolated_filesystem() as tmpdir:
+            task_file = Path(tmpdir) / "task.md"
+            task_file.write_text("Task content")
+
+            with patch("codebook.cli.subprocess.run") as mock_run:
+                mock_run.side_effect = RuntimeError("Something went wrong")
+
+                result = runner.invoke(
+                    main,
+                    ["ai", "review", "claude", str(task_file)],
+                )
+
+                assert result.exit_code == 1
+                assert "Error running agent:" in result.output
+
+
+class TestBuildAgentCommand:
+    """Tests for _build_agent_command function."""
+
+    def test_unsupported_agent_returns_none(self):
+        """Should return None for unsupported agent."""
+        result = _build_agent_command("unsupported_agent", "test prompt", ())
+        assert result is None
+
+    def test_claude_command_structure(self):
+        """Should build correct claude command."""
+        result = _build_agent_command("claude", "test prompt", ())
+        assert result == ["claude", "--print", "test prompt"]
+
+    def test_codex_command_structure(self):
+        """Should build correct codex command with prompt as positional arg."""
+        result = _build_agent_command("codex", "test prompt", ())
+        assert result == ["codex", "test prompt"]
+
+    def test_gemini_command_structure(self):
+        """Should build correct gemini command."""
+        result = _build_agent_command("gemini", "test prompt", ())
+        assert result == ["gemini", "--prompt-interactive", "test prompt"]
+
+    def test_opencode_command_structure(self):
+        """Should build correct opencode command with prompt as positional arg."""
+        result = _build_agent_command("opencode", "test prompt", ())
+        assert result == ["opencode", "test prompt"]
+
+    def test_kimi_command_structure(self):
+        """Should build correct kimi command."""
+        result = _build_agent_command("kimi", "test prompt", ())
+        assert result == ["kimi", "--command", "test prompt"]
+
+    def test_agent_args_inserted_before_prompt_flag(self):
+        """Should insert agent_args before the prompt flag."""
+        result = _build_agent_command("claude", "test prompt", ("--model", "gpt-4"))
+        assert result == ["claude", "--model", "gpt-4", "--print", "test prompt"]
+
+    def test_agent_args_inserted_before_positional_prompt(self):
+        """Should insert agent_args before positional prompt."""
+        result = _build_agent_command("codex", "test prompt", ("--flag", "value"))
+        assert result == ["codex", "--flag", "value", "test prompt"]
+
+
+class TestAIConfig:
+    """Tests for AI helper configuration (serialization/deserialization)."""
+
+    def test_from_dict_sets_custom_review_prompt(self):
+        """_from_dict should apply a custom ai.review_prompt from config dict."""
+        config_dict = {
+            "ai": {
+                "review_prompt": "Custom review prompt for PR reviews.",
+            }
+        }
+
+        cfg = CodeBookConfig._from_dict(config_dict)
+
+        assert cfg.ai.review_prompt == "Custom review prompt for PR reviews."
+
+    def test_from_dict_uses_default_when_not_specified(self):
+        """_from_dict should use DEFAULT_REVIEW_PROMPT when ai.review_prompt not specified."""
+        cfg = CodeBookConfig._from_dict({})
+
+        assert cfg.ai.review_prompt == DEFAULT_REVIEW_PROMPT
+
+    def test_to_dict_omits_ai_when_review_prompt_is_default(self):
+        """to_dict() should omit the 'ai' key when the review_prompt is the default."""
+        cfg = CodeBookConfig._from_dict({})
+
+        # Sanity-check default wiring
+        assert cfg.ai.review_prompt == DEFAULT_REVIEW_PROMPT
+
+        data = cfg.to_dict()
+
+        assert "ai" not in data
+
+    def test_to_dict_includes_ai_when_review_prompt_overridden(self):
+        """to_dict() should include 'ai.review_prompt' when it differs from default."""
+        config_dict = {
+            "ai": {
+                "review_prompt": "Overridden review prompt.",
+            }
+        }
+        cfg = CodeBookConfig._from_dict(config_dict)
+
+        # Ensure we really have a non-default prompt
+        assert cfg.ai.review_prompt != DEFAULT_REVIEW_PROMPT
+
+        data = cfg.to_dict()
+
+        assert "ai" in data
+        assert data["ai"]["review_prompt"] == "Overridden review prompt."
+
+    def test_ai_config_default_initialization(self):
+        """AIConfig should initialize with default review prompt."""
+        ai_config = AIConfig()
+        assert ai_config.review_prompt == DEFAULT_REVIEW_PROMPT

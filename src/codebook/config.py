@@ -49,6 +49,23 @@ Do not remove diff lines from the task file.
 --- SOLUTION ---
 """
 
+DEFAULT_REVIEW_PROMPT = """\
+You are a helpful assistant that reviews the task and provides feedback.
+You are given a task file that contains a diff of the changes that were made to the codebase.
+You need to read the original feature documents that were changed, as well as the diff, and provide feedback on the changes that were made to the codebase. Make sure the documentation describes accurately the changes' functionality.
+Append your feedback to the task file starting with the --- REVIEW YYYYMMDDHHMM --- on top. Do not change any other parts of the task file.
+
+
+This is the task file: [TASK_FILE]
+"""
+
+
+@dataclass
+class AIConfig:
+    """AI helpers configuration."""
+
+    review_prompt: str = field(default_factory=lambda: DEFAULT_REVIEW_PROMPT)
+
 
 @dataclass
 class CodeBookConfig:
@@ -73,6 +90,9 @@ class CodeBookConfig:
     # Servers
     backend: BackendConfig = field(default_factory=BackendConfig)
     cicada: CicadaConfig = field(default_factory=CicadaConfig)
+
+    # AI helpers
+    ai: AIConfig = field(default_factory=AIConfig)
 
     # Timeouts
     timeout: float = 10.0
@@ -144,6 +164,11 @@ class CodeBookConfig:
             start=cicada_data.get("start", False),
         )
 
+        ai_data = data.get("ai", {})
+        ai = AIConfig(
+            review_prompt=ai_data.get("review_prompt", DEFAULT_REVIEW_PROMPT),
+        )
+
         watch_dir = data.get("watch_dir", ".")
         # Default tasks_dir to {watch_dir}/tasks if not specified
         tasks_dir = data.get("tasks_dir", str(Path(watch_dir) / "tasks"))
@@ -155,6 +180,7 @@ class CodeBookConfig:
             recursive=data.get("recursive", True),
             backend=backend,
             cicada=cicada,
+            ai=ai,
             timeout=data.get("timeout", 10.0),
             cache_ttl=data.get("cache_ttl", 60.0),
             task_prefix=data.get("task-prefix", DEFAULT_TASK_PREFIX),
@@ -182,6 +208,9 @@ class CodeBookConfig:
                 "start": self.cicada.start,
             },
         }
+        # Only include AI customization if non-default
+        if self.ai.review_prompt != DEFAULT_REVIEW_PROMPT:
+            result["ai"] = {"review_prompt": self.ai.review_prompt}
         # Only include task customization if non-default
         if self.task_prefix != DEFAULT_TASK_PREFIX:
             result["task-prefix"] = self.task_prefix
