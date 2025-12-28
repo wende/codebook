@@ -27,9 +27,9 @@ stop:
 	@pkill -f "mock_server.py" 2>/dev/null || true
 	@echo "Stopped background services"
 
-# Run tests
+# Run tests in parallel (quiet, only show failures)
 test:
-	python -m pytest tests/ -v
+	PYTHONWARNINGS="ignore::RuntimeWarning" python -m pytest tests/ -n auto -q --tb=short
 
 # Clean up
 clean:
