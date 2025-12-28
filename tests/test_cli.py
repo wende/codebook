@@ -8,7 +8,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from click.testing import CliRunner
 
-from codebook.cli import main
+from codebook.cli import _build_agent_command, main
+from codebook.config import DEFAULT_REVIEW_PROMPT, AIConfig, CodeBookConfig
 
 # Import helper from conftest (pytest loads fixtures automatically, but we need explicit import)
 sys.path.insert(0, str(Path(__file__).parent))
@@ -1483,6 +1484,26 @@ class TestAICommands:
         """Create a CLI test runner."""
         return CliRunner()
 
+    @pytest.fixture
+    def ai_review_env(self, runner: CliRunner):
+        """Set up environment for AI review tests with task file and mocked subprocess.
+
+        Yields a tuple of (runner, task_file, mock_run) for use in tests.
+        """
+        from contextlib import contextmanager
+
+        @contextmanager
+        def create_env(task_content: str = "Task content"):
+            with runner.isolated_filesystem() as tmpdir:
+                task_file = Path(tmpdir) / "task.md"
+                task_file.write_text(task_content)
+
+                with patch("codebook.cli.subprocess.run") as mock_run:
+                    mock_run.return_value = MagicMock(returncode=0)
+                    yield runner, task_file, mock_run
+
+        return create_env
+
     def test_ai_help_command(self, runner: CliRunner):
         """Should show help for AI helpers."""
         result = runner.invoke(main, ["ai", "help"])
@@ -1788,3 +1809,119 @@ class TestAICommands:
 
             assert result.exit_code != 0
             assert "directory" in result.output.lower() or "file" in result.output.lower()
+
+    def test_ai_review_generic_exception(self, runner: CliRunner):
+        """Should handle generic exceptions from subprocess.run."""
+        with runner.isolated_filesystem() as tmpdir:
+            task_file = Path(tmpdir) / "task.md"
+            task_file.write_text("Task content")
+
+            with patch("codebook.cli.subprocess.run") as mock_run:
+                mock_run.side_effect = RuntimeError("Something went wrong")
+
+                result = runner.invoke(
+                    main,
+                    ["ai", "review", "claude", str(task_file)],
+                )
+
+                assert result.exit_code == 1
+                assert "Error running agent:" in result.output
+
+
+class TestBuildAgentCommand:
+    """Tests for _build_agent_command function."""
+
+    def test_unsupported_agent_returns_none(self):
+        """Should return None for unsupported agent."""
+        result = _build_agent_command("unsupported_agent", "test prompt", ())
+        assert result is None
+
+    def test_claude_command_structure(self):
+        """Should build correct claude command."""
+        result = _build_agent_command("claude", "test prompt", ())
+        assert result == ["claude", "--print", "test prompt"]
+
+    def test_codex_command_structure(self):
+        """Should build correct codex command with prompt as positional arg."""
+        result = _build_agent_command("codex", "test prompt", ())
+        assert result == ["codex", "test prompt"]
+
+    def test_gemini_command_structure(self):
+        """Should build correct gemini command."""
+        result = _build_agent_command("gemini", "test prompt", ())
+        assert result == ["gemini", "--prompt-interactive", "test prompt"]
+
+    def test_opencode_command_structure(self):
+        """Should build correct opencode command with prompt as positional arg."""
+        result = _build_agent_command("opencode", "test prompt", ())
+        assert result == ["opencode", "test prompt"]
+
+    def test_kimi_command_structure(self):
+        """Should build correct kimi command."""
+        result = _build_agent_command("kimi", "test prompt", ())
+        assert result == ["kimi", "--command", "test prompt"]
+
+    def test_agent_args_inserted_before_prompt_flag(self):
+        """Should insert agent_args before the prompt flag."""
+        result = _build_agent_command("claude", "test prompt", ("--model", "gpt-4"))
+        assert result == ["claude", "--model", "gpt-4", "--print", "test prompt"]
+
+    def test_agent_args_inserted_before_positional_prompt(self):
+        """Should insert agent_args before positional prompt."""
+        result = _build_agent_command("codex", "test prompt", ("--flag", "value"))
+        assert result == ["codex", "--flag", "value", "test prompt"]
+
+
+class TestAIConfig:
+    """Tests for AI helper configuration (serialization/deserialization)."""
+
+    def test_from_dict_sets_custom_review_prompt(self):
+        """_from_dict should apply a custom ai.review_prompt from config dict."""
+        config_dict = {
+            "ai": {
+                "review_prompt": "Custom review prompt for PR reviews.",
+            }
+        }
+
+        cfg = CodeBookConfig._from_dict(config_dict)
+
+        assert cfg.ai.review_prompt == "Custom review prompt for PR reviews."
+
+    def test_from_dict_uses_default_when_not_specified(self):
+        """_from_dict should use DEFAULT_REVIEW_PROMPT when ai.review_prompt not specified."""
+        cfg = CodeBookConfig._from_dict({})
+
+        assert cfg.ai.review_prompt == DEFAULT_REVIEW_PROMPT
+
+    def test_to_dict_omits_ai_when_review_prompt_is_default(self):
+        """to_dict() should omit the 'ai' key when the review_prompt is the default."""
+        cfg = CodeBookConfig._from_dict({})
+
+        # Sanity-check default wiring
+        assert cfg.ai.review_prompt == DEFAULT_REVIEW_PROMPT
+
+        data = cfg.to_dict()
+
+        assert "ai" not in data
+
+    def test_to_dict_includes_ai_when_review_prompt_overridden(self):
+        """to_dict() should include 'ai.review_prompt' when it differs from default."""
+        config_dict = {
+            "ai": {
+                "review_prompt": "Overridden review prompt.",
+            }
+        }
+        cfg = CodeBookConfig._from_dict(config_dict)
+
+        # Ensure we really have a non-default prompt
+        assert cfg.ai.review_prompt != DEFAULT_REVIEW_PROMPT
+
+        data = cfg.to_dict()
+
+        assert "ai" in data
+        assert data["ai"]["review_prompt"] == "Overridden review prompt."
+
+    def test_ai_config_default_initialization(self):
+        """AIConfig should initialize with default review prompt."""
+        ai_config = AIConfig()
+        assert ai_config.review_prompt == DEFAULT_REVIEW_PROMPT

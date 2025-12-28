@@ -20,7 +20,7 @@ Supported agents:
 - kimi
 
 Agent arguments are passed to the agent as command line arguments.
-Review starts an agent with a specific prompt, that can be customized in the [codebook.yml](./CONFIGURATION.md) config file.
+Review starts an agent with a specific prompt that can be customized in the [codebook.yml](./CONFIGURATION.md) config file.
 Default prompt is:
 ```
 You are a helpful assistant that reviews the task and provides feedback.

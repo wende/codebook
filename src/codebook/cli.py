@@ -1882,6 +1882,9 @@ def ai_review(ctx: click.Context, agent: str, path: Path, agent_args: tuple[str,
 
     try:
         # Run the agent command
+        # Security note: Using list format (not shell=True) protects against shell injection.
+        # The agent name is constrained to SUPPORTED_AGENTS via click.Choice, and the prompt/args
+        # come from user-controlled config and CLI input, which is expected behavior.
         result = subprocess.run(agent_cmd)
         sys.exit(result.returncode)
     except FileNotFoundError:
@@ -1890,6 +1893,17 @@ def ai_review(ctx: click.Context, agent: str, path: Path, agent_args: tuple[str,
     except Exception as e:
         click.echo(f"Error running agent: {e}", err=True)
         sys.exit(1)
+
+
+# Agent command configurations: maps agent name to (executable, prompt_flag or None)
+# If prompt_flag is None, the prompt is passed as a positional argument
+AGENT_COMMANDS: dict[str, tuple[str, str | None]] = {
+    "claude": ("claude", "--print"),  # claude [args] --print "prompt"
+    "codex": ("codex", None),  # codex [args] "prompt"
+    "gemini": ("gemini", "--prompt-interactive"),  # gemini [args] --prompt-interactive "prompt"
+    "opencode": ("opencode", None),  # opencode [args] "prompt"
+    "kimi": ("kimi", "--command"),  # kimi [args] --command "prompt"
+}
 
 
 def _build_agent_command(agent: str, prompt: str, agent_args: tuple[str, ...]) -> list[str] | None:
@@ -1903,29 +1917,17 @@ def _build_agent_command(agent: str, prompt: str, agent_args: tuple[str, ...]) -
     Returns:
         Command as a list of strings, or None if agent not supported
     """
-    # Agent args are inserted before the prompt to support agents that require
-    # options before the prompt argument
-    args = list(agent_args)
-
-    if agent == "claude":
-        # Claude Code CLI: claude [args] --print "prompt"
-        cmd = ["claude", *args, "--print", prompt]
-    elif agent == "codex":
-        # OpenAI Codex CLI: codex [args] "prompt"
-        cmd = ["codex", *args, prompt]
-    elif agent == "gemini":
-        # Gemini CLI: gemini [args] --prompt-interactive "prompt"
-        cmd = ["gemini", *args, "--prompt-interactive", prompt]
-    elif agent == "opencode":
-        # OpenCode CLI: opencode [args] "prompt"
-        cmd = ["opencode", *args, prompt]
-    elif agent == "kimi":
-        # Kimi CLI: kimi [args] --command "prompt"
-        cmd = ["kimi", *args, "--command", prompt]
-    else:
+    if agent not in AGENT_COMMANDS:
         return None
 
-    return cmd
+    executable, prompt_flag = AGENT_COMMANDS[agent]
+    args = list(agent_args)
+
+    # Build command: executable [args] [prompt_flag] prompt
+    if prompt_flag:
+        return [executable, *args, prompt_flag, prompt]
+    else:
+        return [executable, *args, prompt]
 
 
 if __name__ == "__main__":
