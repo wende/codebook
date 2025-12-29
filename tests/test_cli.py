@@ -322,7 +322,7 @@ class TestCLI:
         result = runner.invoke(main, ["--version"])
 
         assert result.exit_code == 0
-        assert "0.1.0" in result.output
+        assert "0.1" in result.output
 
 
 class TestTaskCommands:
@@ -539,6 +539,39 @@ class TestTaskCommands:
         task_files = list(tasks_dir.glob("*.md"))
         assert len(task_files) == 1
         assert "MY_SPECIAL_TASK" in task_files[0].name
+
+    def test_task_new_excludes_task_files(self, git_repo: Path):
+        """Should exclude files in tasks directory when creating a task."""
+        runner = CliRunner()
+
+        # Create tasks directory and a task file in it
+        tasks_dir = git_repo / "tasks"
+        tasks_dir.mkdir(parents=True)
+        task_file = tasks_dir / "existing_task.md"
+        task_file.write_text("Existing task content")
+
+        # Create a source file outside tasks directory
+        md_file = git_repo / "source.md"
+        md_file.write_text("Source content")
+
+        # Run task new on the entire git_repo (which contains tasks/)
+        result = runner.invoke(
+            main,
+            ["task", "new", "New Task", str(git_repo)],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0
+        assert "Created task" in result.output
+
+        # Check the created task file
+        new_task_files = list(tasks_dir.glob("*NEW_TASK.md"))
+        assert len(new_task_files) == 1
+
+        # Read the task content and verify it only includes source.md, not existing_task.md
+        task_content = new_task_files[0].read_text()
+        assert "source.md" in task_content
+        assert "existing_task.md" not in task_content
 
     def test_task_list_empty(self, runner: CliRunner):
         """Should show message when no tasks exist."""
@@ -1019,6 +1052,533 @@ index 0000000..{commit_sha}
         # Should NOT have any non-JSON output
         assert "Extracting commits" not in result.output
         assert "Analyzing" not in result.output
+
+    def test_task_coverage_with_reviewed_files(self, git_repo: Path):
+        """Should use reviewed files from task frontmatter for coverage."""
+        runner = CliRunner()
+
+        # Create a source file and commit it
+        src_file = git_repo / "reviewed_code.py"
+        src_file.write_text("def reviewed():\n    return True\n")
+        subprocess.run(["git", "add", "reviewed_code.py"], cwd=git_repo, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Add reviewed code"],
+            cwd=git_repo,
+            capture_output=True,
+        )
+
+        # Get the full commit SHA
+        result_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=git_repo,
+            capture_output=True,
+            text=True,
+        )
+        commit_sha = result_sha.stdout.strip()
+
+        # Create a task file with reviewed frontmatter
+        tasks_dir = git_repo / "tasks"
+        tasks_dir.mkdir(parents=True)
+        task_file = tasks_dir / "202412281530-REVIEW_TASK.md"
+        task_content = f"""---
+reviewed:
+  - reviewed_code.py:{commit_sha}
+---
+# Review Task
+
+This task reviews the reviewed_code.py file.
+"""
+        task_file.write_text(task_content)
+
+        # Commit the task file so it can be analyzed
+        subprocess.run(["git", "add", str(task_file)], cwd=git_repo, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Add review task"],
+            cwd=git_repo,
+            capture_output=True,
+        )
+
+        # Run coverage
+        result = runner.invoke(main, ["task", "coverage", str(git_repo)])
+
+        assert result.exit_code == 0
+        assert "reviewed file(s)" in result.output
+        assert "reviewed_code.py" in result.output
+        # The file should show as covered
+        assert "100.0%" in result.output or "✓" in result.output
+
+    def test_task_coverage_reviewed_ancestor_commits(self, git_repo: Path):
+        """Should cover lines from ancestor commits when reviewed SHA is specified."""
+        runner = CliRunner()
+
+        # Create a source file with initial content
+        src_file = git_repo / "evolving_code.py"
+        src_file.write_text("line1\n")
+        subprocess.run(["git", "add", "evolving_code.py"], cwd=git_repo, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "First commit"],
+            cwd=git_repo,
+            capture_output=True,
+        )
+
+        # Add more content in a second commit
+        src_file.write_text("line1\nline2\n")
+        subprocess.run(["git", "add", "evolving_code.py"], cwd=git_repo, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Second commit"],
+            cwd=git_repo,
+            capture_output=True,
+        )
+
+        # Get the full commit SHA of the second commit
+        result_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=git_repo,
+            capture_output=True,
+            text=True,
+        )
+        second_commit_sha = result_sha.stdout.strip()
+
+        # Create a task file that reviews up to the second commit
+        # This should cover both lines (line1 from first commit, line2 from second)
+        tasks_dir = git_repo / "tasks"
+        tasks_dir.mkdir(parents=True)
+        task_file = tasks_dir / "202412281530-ANCESTOR_REVIEW.md"
+        task_content = f"""---
+reviewed:
+  - evolving_code.py:{second_commit_sha}
+---
+# Ancestor Review Task
+
+This task reviews all commits up to {second_commit_sha[:7]}.
+"""
+        task_file.write_text(task_content)
+
+        # Commit the task file
+        subprocess.run(["git", "add", str(task_file)], cwd=git_repo, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Add ancestor review task"],
+            cwd=git_repo,
+            capture_output=True,
+        )
+
+        # Run coverage
+        result = runner.invoke(main, ["task", "coverage", str(git_repo)])
+
+        assert result.exit_code == 0
+        # Both lines should be covered since both commits are ancestors
+        assert "evolving_code.py" in result.output
+        # Should show 100% coverage for the file
+        lines = result.output.split("\n")
+        evolving_code_line = [l for l in lines if "evolving_code.py" in l]
+        assert len(evolving_code_line) > 0
+        # The file should be fully covered
+        assert "100.0%" in evolving_code_line[0] or "2/" in evolving_code_line[0]
+
+    def test_task_coverage_reviewed_not_ancestor(self, git_repo: Path):
+        """Should NOT cover lines from commits after the reviewed SHA."""
+        runner = CliRunner()
+
+        # Create a source file with initial content
+        src_file = git_repo / "future_code.py"
+        src_file.write_text("original_line\n")
+        subprocess.run(["git", "add", "future_code.py"], cwd=git_repo, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Original commit"],
+            cwd=git_repo,
+            capture_output=True,
+        )
+
+        # Get the SHA of the original commit
+        result_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=git_repo,
+            capture_output=True,
+            text=True,
+        )
+        original_sha = result_sha.stdout.strip()
+
+        # Add more content in a future commit (after review point)
+        src_file.write_text("original_line\nfuture_line\n")
+        subprocess.run(["git", "add", "future_code.py"], cwd=git_repo, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Future commit"],
+            cwd=git_repo,
+            capture_output=True,
+        )
+
+        # Create a task file that reviews only up to the original commit
+        tasks_dir = git_repo / "tasks"
+        tasks_dir.mkdir(parents=True)
+        task_file = tasks_dir / "202412281530-PARTIAL_REVIEW.md"
+        task_content = f"""---
+reviewed:
+  - future_code.py:{original_sha}
+---
+# Partial Review Task
+
+This task only reviews up to the original commit.
+"""
+        task_file.write_text(task_content)
+
+        # Commit the task file
+        subprocess.run(["git", "add", str(task_file)], cwd=git_repo, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Add partial review task"],
+            cwd=git_repo,
+            capture_output=True,
+        )
+
+        # Run coverage with detailed output
+        result = runner.invoke(main, ["task", "coverage", str(git_repo), "--detailed"])
+
+        assert result.exit_code == 0
+        # Should show future_code.py in output
+        assert "future_code.py" in result.output
+        # Should NOT be 100% covered since future_line is not covered
+        lines = result.output.split("\n")
+        # Look for coverage info - should be partial
+        future_code_lines = [l for l in lines if "future_code.py" in l]
+        # The file should have partial coverage (1/2 = 50%)
+        assert any("50.0%" in l or "1/" in l for l in future_code_lines)
+
+    def test_task_coverage_multiple_reviewed_entries(self, git_repo: Path):
+        """Should handle multiple reviewed entries in frontmatter."""
+        runner = CliRunner()
+
+        # Create two source files
+        file1 = git_repo / "file1.py"
+        file1.write_text("content1\n")
+        file2 = git_repo / "file2.py"
+        file2.write_text("content2\n")
+        subprocess.run(["git", "add", "."], cwd=git_repo, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Add files"],
+            cwd=git_repo,
+            capture_output=True,
+        )
+
+        # Get the commit SHA
+        result_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=git_repo,
+            capture_output=True,
+            text=True,
+        )
+        commit_sha = result_sha.stdout.strip()
+
+        # Create a task file with multiple reviewed entries
+        tasks_dir = git_repo / "tasks"
+        tasks_dir.mkdir(parents=True)
+        task_file = tasks_dir / "202412281530-MULTI_REVIEW.md"
+        task_content = f"""---
+reviewed:
+  - file1.py:{commit_sha}
+  - file2.py:{commit_sha}
+---
+# Multi Review Task
+
+This task reviews multiple files.
+"""
+        task_file.write_text(task_content)
+
+        # Commit the task file
+        subprocess.run(["git", "add", str(task_file)], cwd=git_repo, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Add multi review task"],
+            cwd=git_repo,
+            capture_output=True,
+        )
+
+        # Run coverage
+        result = runner.invoke(main, ["task", "coverage", str(git_repo)])
+
+        assert result.exit_code == 0
+        assert "file1.py" in result.output
+        assert "file2.py" in result.output
+        # Both files should be covered
+        assert "100.0%" in result.output or "Overall Coverage:" in result.output
+
+    def test_task_mark_reviewed_help(self, runner: CliRunner):
+        """Should show mark-reviewed help."""
+        result = runner.invoke(main, ["task", "mark-reviewed", "--help"])
+
+        assert result.exit_code == 0
+        assert "Mark a file as reviewed" in result.output
+        assert "FILE_PATH_OR_SHA" in result.output
+
+    def test_task_mark_reviewed_no_ongoing_task(self, git_repo: Path):
+        """Should error when no ongoing task exists."""
+        runner = CliRunner()
+
+        # Create a file and commit so HEAD is valid
+        src_file = git_repo / "some_file.py"
+        src_file.write_text("code\n")
+        subprocess.run(["git", "add", "."], cwd=git_repo, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "Add file"], cwd=git_repo, capture_output=True)
+
+        # No tasks exist
+        result = runner.invoke(main, ["task", "mark-reviewed", "file.py"])
+
+        assert result.exit_code != 0
+        assert "No ongoing task found" in result.output
+
+    def test_task_mark_reviewed_auto_sha(self, git_repo: Path):
+        """Should auto-resolve SHA to HEAD when not provided."""
+        runner = CliRunner()
+
+        # Create a source file and commit it
+        src_file = git_repo / "auto_sha.py"
+        src_file.write_text("code\n")
+        subprocess.run(["git", "add", "."], cwd=git_repo, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "Add file"], cwd=git_repo, capture_output=True)
+
+        # Get actual commit SHA
+        result_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=git_repo,
+            capture_output=True,
+            text=True,
+        )
+        commit_sha = result_sha.stdout.strip()
+
+        # Create task
+        tasks_dir = git_repo / "tasks"
+        tasks_dir.mkdir(parents=True)
+        task_file = tasks_dir / "202412281530-AUTO_SHA.md"
+        task_file.write_text("# Auto SHA\n")
+
+        # Mark reviewed WITHOUT providing SHA
+        result = runner.invoke(
+            main,
+            ["task", "mark-reviewed", "auto_sha.py"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0
+
+        # Verify the resolved SHA was used
+        content = task_file.read_text()
+        assert f"auto_sha.py:{commit_sha}" in content
+
+    def test_task_mark_reviewed_adds_to_ongoing_task(self, git_repo: Path):
+        """Should add reviewed entry to ongoing task."""
+        runner = CliRunner()
+
+        # Create a source file and commit it
+        src_file = git_repo / "reviewed.py"
+        src_file.write_text("code\n")
+        subprocess.run(["git", "add", "."], cwd=git_repo, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "Add file"], cwd=git_repo, capture_output=True)
+
+        # Get commit SHA
+        result_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=git_repo,
+            capture_output=True,
+            text=True,
+        )
+        commit_sha = result_sha.stdout.strip()
+
+        # Create an untracked task file (ongoing)
+        tasks_dir = git_repo / "tasks"
+        tasks_dir.mkdir(parents=True)
+        task_file = tasks_dir / "202412281530-ONGOING.md"
+        task_file.write_text("# Ongoing Task\n\nTask content.\n")
+
+        # Mark file as reviewed
+        result = runner.invoke(
+            main,
+            ["task", "mark-reviewed", f"reviewed.py:{commit_sha}"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0
+        assert "Added reviewed entry" in result.output
+
+        # Verify frontmatter was added
+        content = task_file.read_text()
+        assert "---" in content
+        assert "reviewed:" in content
+        assert f"reviewed.py:{commit_sha}" in content
+
+    def test_task_mark_reviewed_adds_to_existing_frontmatter(self, git_repo: Path):
+        """Should add reviewed entry to task with existing frontmatter."""
+        runner = CliRunner()
+
+        # Create a source file and commit it
+        src_file = git_repo / "another.py"
+        src_file.write_text("code\n")
+        subprocess.run(["git", "add", "."], cwd=git_repo, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "Add file"], cwd=git_repo, capture_output=True)
+
+        # Get commit SHA
+        result_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=git_repo,
+            capture_output=True,
+            text=True,
+        )
+        commit_sha = result_sha.stdout.strip()
+
+        # Create task with existing frontmatter
+        tasks_dir = git_repo / "tasks"
+        tasks_dir.mkdir(parents=True)
+        task_file = tasks_dir / "202412281530-HAS_FRONTMATTER.md"
+        task_file.write_text(
+            """---
+title: My Task
+tags: [feature]
+---
+# Has Frontmatter
+
+Task content.
+"""
+        )
+
+        # Mark file as reviewed
+        result = runner.invoke(
+            main,
+            ["task", "mark-reviewed", f"another.py:{commit_sha}"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0
+
+        # Verify reviewed was added to existing frontmatter
+        content = task_file.read_text()
+        assert "title: My Task" in content
+        assert "reviewed:" in content
+        assert f"another.py:{commit_sha}" in content
+
+    def test_task_mark_reviewed_appends_to_existing_reviewed(self, git_repo: Path):
+        """Should append to existing reviewed list."""
+        runner = CliRunner()
+
+        # Create source files and commit
+        file1 = git_repo / "file1.py"
+        file1.write_text("code1\n")
+        file2 = git_repo / "file2.py"
+        file2.write_text("code2\n")
+        subprocess.run(["git", "add", "."], cwd=git_repo, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "Add files"], cwd=git_repo, capture_output=True)
+
+        # Get commit SHA
+        result_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=git_repo,
+            capture_output=True,
+            text=True,
+        )
+        commit_sha = result_sha.stdout.strip()
+
+        # Create task with one reviewed entry already
+        tasks_dir = git_repo / "tasks"
+        tasks_dir.mkdir(parents=True)
+        task_file = tasks_dir / "202412281530-PARTIAL_REVIEWED.md"
+        task_file.write_text(
+            f"""---
+reviewed:
+  - file1.py:{commit_sha}
+---
+# Partial Reviewed
+
+Task content.
+"""
+        )
+
+        # Add another reviewed entry
+        result = runner.invoke(
+            main,
+            ["task", "mark-reviewed", f"file2.py:{commit_sha}"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0
+
+        # Verify both entries are present
+        content = task_file.read_text()
+        assert f"file1.py:{commit_sha}" in content
+        assert f"file2.py:{commit_sha}" in content
+
+    def test_task_mark_reviewed_with_specific_task(self, git_repo: Path):
+        """Should add reviewed entry to specific task when --task is provided."""
+        runner = CliRunner()
+
+        # Create a source file and commit it
+        src_file = git_repo / "target.py"
+        src_file.write_text("code\n")
+        subprocess.run(["git", "add", "."], cwd=git_repo, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "Add file"], cwd=git_repo, capture_output=True)
+
+        # Get commit SHA
+        result_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=git_repo,
+            capture_output=True,
+            text=True,
+        )
+        commit_sha = result_sha.stdout.strip()
+
+        # Create two task files
+        tasks_dir = git_repo / "tasks"
+        tasks_dir.mkdir(parents=True)
+        task1 = tasks_dir / "202412281530-TASK_ONE.md"
+        task1.write_text("# Task One\n")
+        task2 = tasks_dir / "202412281531-TASK_TWO.md"
+        task2.write_text("# Task Two\n")
+
+        # Mark reviewed on the first task specifically
+        result = runner.invoke(
+            main,
+            ["task", "mark-reviewed", f"target.py:{commit_sha}", "--task", str(task1)],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0
+
+        # Verify only task1 was updated
+        assert f"target.py:{commit_sha}" in task1.read_text()
+        assert f"target.py:{commit_sha}" not in task2.read_text()
+
+    def test_task_mark_reviewed_resolves_head(self, git_repo: Path):
+        """Should resolve HEAD to actual commit SHA."""
+        runner = CliRunner()
+
+        # Create a source file and commit it
+        src_file = git_repo / "head_test.py"
+        src_file.write_text("code\n")
+        subprocess.run(["git", "add", "."], cwd=git_repo, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "Add file"], cwd=git_repo, capture_output=True)
+
+        # Get actual commit SHA
+        result_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=git_repo,
+            capture_output=True,
+            text=True,
+        )
+        commit_sha = result_sha.stdout.strip()
+
+        # Create task
+        tasks_dir = git_repo / "tasks"
+        tasks_dir.mkdir(parents=True)
+        task_file = tasks_dir / "202412281530-HEAD_TEST.md"
+        task_file.write_text("# Head Test\n")
+
+        # Use HEAD as the SHA
+        result = runner.invoke(
+            main,
+            ["task", "mark-reviewed", "head_test.py:HEAD"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0
+
+        # Verify the resolved SHA was used
+        content = task_file.read_text()
+        assert f"head_test.py:{commit_sha}" in content
+        assert "HEAD" not in content  # Should be resolved
 
     def test_task_stats_no_tasks(self, runner: CliRunner):
         """Should error when no tasks directory exists."""

@@ -8,10 +8,11 @@ Also supports executing Python code blocks via Jupyter kernels.
 """
 
 import warnings
+from importlib.metadata import version
 
 warnings.filterwarnings("ignore", message=".*GIL.*")
 
-__version__ = "0.1.0"
+__version__ = version("codebook")
 
 from .cicada import CicadaClient, CicadaResult
 from .client import CodeBookClient

@@ -20,6 +20,7 @@ warnings.filterwarnings("ignore", message=".*GIL.*")
 
 import logging
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -27,6 +28,7 @@ from pathlib import Path
 
 import click
 
+from . import __version__
 from .cicada import CicadaClient
 from .client import CodeBookClient
 from .config import CodeBookConfig, get_port_from_url
@@ -47,7 +49,7 @@ def setup_logging(verbose: bool) -> None:
 
 
 @click.group()
-@click.version_option(version="0.1.0", prog_name="codebook")
+@click.version_option(version=__version__, prog_name="codebook")
 @click.option(
     "--base-url",
     "-b",
@@ -934,11 +936,23 @@ def task_new(
         )
         return all(version_pattern.search(line) for line in changed_lines)
 
-    # Collect files to process
+    # Helper to check if file is in tasks directory
+    def is_in_tasks_dir(file_path: Path) -> bool:
+        """Check if a file path is within the tasks directory."""
+        try:
+            tasks_dir_resolved = Path(cfg.tasks_dir).resolve()
+            file_resolved = file_path.resolve()
+            return (
+                tasks_dir_resolved in file_resolved.parents or file_resolved == tasks_dir_resolved
+            )
+        except (ValueError, OSError):
+            return False
+
+    # Collect files to process (excluding tasks directory)
     if scope.is_file():
-        candidates = [scope]
+        candidates = [scope] if not is_in_tasks_dir(scope) else []
     else:
-        candidates = sorted(scope.glob("**/*.md"))
+        candidates = sorted(f for f in scope.glob("**/*.md") if not is_in_tasks_dir(f))
 
     # Filter to only modified/untracked files unless --all
     if include_all:
@@ -1024,6 +1038,21 @@ def _update_single_task(task_file: Path, scope: Path) -> bool:
     """
     import re
 
+    # Load config for tasks_dir exclusion
+    cfg = CodeBookConfig.load()
+
+    # Helper to check if file is in tasks directory
+    def is_in_tasks_dir(file_path: Path) -> bool:
+        """Check if a file path is within the tasks directory."""
+        try:
+            tasks_dir_resolved = Path(cfg.tasks_dir).resolve()
+            file_resolved = file_path.resolve()
+            return (
+                tasks_dir_resolved in file_resolved.parents or file_resolved == tasks_dir_resolved
+            )
+        except (ValueError, OSError):
+            return False
+
     # Get modified files from git
     def get_modified_files(scope_path: Path) -> tuple[set[Path], set[Path]]:
         """Get list of modified and untracked files in scope."""
@@ -1095,11 +1124,11 @@ def _update_single_task(task_file: Path, scope: Path) -> bool:
     # Extract files already in task
     existing_files = extract_files_from_task(task_content)
 
-    # Collect files to process
+    # Collect files to process (excluding tasks directory)
     if scope.is_file():
-        candidates = [scope]
+        candidates = [scope] if not is_in_tasks_dir(scope) else []
     else:
-        candidates = sorted(scope.glob("**/*.md"))
+        candidates = sorted(f for f in scope.glob("**/*.md") if not is_in_tasks_dir(f))
 
     # Get modified/untracked files
     modified, untracked_files = get_modified_files(scope)
@@ -1441,6 +1470,106 @@ def task_delete(title: str | None, force: bool) -> None:
     click.echo(f"Deleted: {target_file}")
 
 
+def _parse_task_frontmatter(content: str) -> dict:
+    """Parse YAML frontmatter from a task file.
+
+    Args:
+        content: The task file content
+
+    Returns:
+        Dict containing parsed frontmatter fields, or empty dict if none found
+    """
+    import yaml
+
+    # Match frontmatter at the start of the file
+    frontmatter_pattern = re.compile(r"^---\n(.*?)\n---\n?", re.DOTALL)
+    match = frontmatter_pattern.match(content)
+    if not match:
+        return {}
+
+    yaml_content = match.group(1)
+    try:
+        data = yaml.safe_load(yaml_content) or {}
+        return data if isinstance(data, dict) else {}
+    except yaml.YAMLError:
+        return {}
+
+
+def _is_ancestor_commit(ancestor_sha: str, descendant_sha: str, git_root: Path) -> bool:
+    """Check if ancestor_sha is an ancestor of (or equal to) descendant_sha.
+
+    Args:
+        ancestor_sha: The potential ancestor commit SHA
+        descendant_sha: The potential descendant commit SHA
+        git_root: Path to the git root directory
+
+    Returns:
+        True if ancestor_sha is an ancestor of or equal to descendant_sha
+    """
+    # If they're the same commit (comparing short SHAs)
+    if ancestor_sha.startswith(descendant_sha) or descendant_sha.startswith(ancestor_sha):
+        return True
+
+    try:
+        # git merge-base --is-ancestor returns 0 if ancestor is an ancestor of descendant
+        result = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", ancestor_sha, descendant_sha],
+            cwd=git_root,
+            capture_output=True,
+            text=True,
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
+
+
+def _extract_reviewed_files(tasks_dir: Path) -> dict[str, list[tuple[str, str]]]:
+    """Extract reviewed file:sha pairs from task frontmatter.
+
+    Args:
+        tasks_dir: Path to the tasks directory
+
+    Returns:
+        Dict mapping file paths to list of (sha, task_name) tuples
+    """
+    reviewed_files: dict[str, list[tuple[str, str]]] = {}
+
+    if not tasks_dir.exists():
+        return reviewed_files
+
+    task_files = sorted(tasks_dir.glob("*.md"))
+
+    for task_file in task_files:
+        task_name = task_file.stem
+        try:
+            content = task_file.read_text(encoding="utf-8")
+            frontmatter = _parse_task_frontmatter(content)
+
+            reviewed = frontmatter.get("reviewed", [])
+            if isinstance(reviewed, str):
+                reviewed = [reviewed]
+            if not isinstance(reviewed, list):
+                continue
+
+            for entry in reviewed:
+                if not isinstance(entry, str) or ":" not in entry:
+                    continue
+                # Parse format: path/to/file.md:sha
+                parts = entry.rsplit(":", 1)
+                if len(parts) == 2:
+                    file_path, sha = parts
+                    file_path = file_path.strip()
+                    sha = sha.strip()
+                    if file_path and sha:
+                        if file_path not in reviewed_files:
+                            reviewed_files[file_path] = []
+                        reviewed_files[file_path].append((sha, task_name))
+        except Exception:
+            continue
+
+    return reviewed_files
+
+
 @task.command("coverage")
 @click.argument(
     "path_glob",
@@ -1469,6 +1598,10 @@ def task_coverage(path_glob: str, detailed: bool, short: bool, output_json: bool
 
     Shows what percentage of code lines are covered by task documentation.
     Uses git blame to track which commits are associated with tasks.
+
+    Coverage can come from two sources:
+    1. Commits that touched task files (traditional method)
+    2. Files marked as 'reviewed' in task frontmatter with a specific commit SHA
 
     PATH_GLOB is an optional path or glob pattern to limit analysis scope.
 
@@ -1555,15 +1688,20 @@ def task_coverage(path_glob: str, detailed: bool, short: bool, output_json: bool
         click.echo("Extracting commits from task files...")
     task_commits = extract_commits_from_tasks()
 
-    if not task_commits:
+    # Extract reviewed files from task frontmatter
+    reviewed_files = _extract_reviewed_files(tasks_dir)
+
+    if not task_commits and not reviewed_files:
         click.echo("No commits found in task files.", err=True)
         click.echo("Task files must be committed to git for coverage tracking.", err=True)
+        click.echo("Alternatively, add 'reviewed' entries to task frontmatter.", err=True)
         return
 
     if not output_json:
-        click.echo(
-            f"Found {len(task_commits)} commits in {len(set(task_commits.values()))} tasks\n"
-        )
+        click.echo(f"Found {len(task_commits)} commits in {len(set(task_commits.values()))} tasks")
+        if reviewed_files:
+            click.echo(f"Found {len(reviewed_files)} reviewed file(s) in task frontmatter")
+        click.echo()
 
     # Get all files to analyze based on path glob
     scope_path = Path(path_glob).resolve()
@@ -1603,6 +1741,39 @@ def task_coverage(path_glob: str, detailed: bool, short: bool, output_json: bool
     # Analyze coverage per file
     file_coverage: dict[Path, dict[str, any]] = {}
 
+    # Build a cache for reviewed file ancestry checks
+    # Maps (file_path_rel, commit_sha) -> (is_covered, task_name)
+    reviewed_coverage_cache: dict[tuple[str, str], tuple[bool, str | None]] = {}
+
+    def check_reviewed_coverage(file_path_rel: str, commit_sha: str) -> tuple[bool, str | None]:
+        """Check if a commit is covered by reviewed entries for this file.
+
+        Uses git merge-base to check if the commit is an ancestor of any
+        reviewed SHA for this file.
+
+        Args:
+            file_path_rel: Relative path to the file
+            commit_sha: The commit SHA to check
+
+        Returns:
+            Tuple of (is_covered, task_name) where task_name is the covering task
+        """
+        cache_key = (file_path_rel, commit_sha)
+        if cache_key in reviewed_coverage_cache:
+            return reviewed_coverage_cache[cache_key]
+
+        result = (False, None)
+
+        if file_path_rel in reviewed_files:
+            for reviewed_sha, task_name in reviewed_files[file_path_rel]:
+                # Check if commit_sha is an ancestor of (or equal to) reviewed_sha
+                if _is_ancestor_commit(commit_sha, reviewed_sha, git_root):
+                    result = (True, task_name)
+                    break
+
+        reviewed_coverage_cache[cache_key] = result
+        return result
+
     for file_path in files_to_analyze:
         try:
             # Get git blame for the file
@@ -1617,24 +1788,41 @@ def task_coverage(path_glob: str, detailed: bool, short: bool, output_json: bool
             if result.returncode != 0:
                 continue
 
+            # Get relative path for reviewed file lookup
+            try:
+                file_path_rel = str(file_path.resolve().relative_to(git_root))
+            except ValueError:
+                file_path_rel = str(file_path)
+
             # Parse blame output
             lines_data = []
             current_commit = None
+            current_commit_full = None
 
             for line in result.stdout.split("\n"):
                 if line and line[0].isalnum() and len(line.split()) > 0:
                     # Commit SHA line
                     parts = line.split()
                     if len(parts[0]) == 40:  # Full SHA
+                        current_commit_full = parts[0]
                         current_commit = parts[0][:7]  # Use short SHA
                 elif line.startswith("\t") and current_commit:
                     # Actual code line
+                    # First check traditional task commit coverage
                     task_name = task_commits.get(current_commit)
+                    is_covered = task_name is not None
+
+                    # If not covered by task commits, check reviewed files
+                    if not is_covered and current_commit_full:
+                        is_covered, task_name = check_reviewed_coverage(
+                            file_path_rel, current_commit_full
+                        )
+
                     lines_data.append(
                         {
                             "commit": current_commit,
                             "task": task_name,
-                            "covered": task_name is not None,
+                            "covered": is_covered,
                         }
                     )
 
@@ -1953,6 +2141,160 @@ def task_stats() -> None:
         click.echo()
 
     click.echo("=" * 80)
+
+
+def _find_ongoing_task(tasks_dir: Path) -> Path | None:
+    """Find the ongoing (most recent untracked/modified) task file.
+
+    An ongoing task is one that has not been committed yet or has uncommitted changes.
+
+    Args:
+        tasks_dir: Path to the tasks directory
+
+    Returns:
+        Path to the ongoing task file, or None if not found
+    """
+    modified_tasks = _get_modified_task_files(tasks_dir)
+    if modified_tasks:
+        # Return the most recent (last in sorted list)
+        return modified_tasks[-1]
+    return None
+
+
+def _add_reviewed_to_task(task_file: Path, file_sha: str) -> bool:
+    """Add a reviewed entry to task frontmatter.
+
+    Args:
+        task_file: Path to the task file
+        file_sha: The file:sha string to add (e.g., "path/to/file.py:abc123")
+
+    Returns:
+        True if successfully updated, False otherwise
+    """
+    import yaml
+
+    content = task_file.read_text(encoding="utf-8")
+
+    # Parse existing frontmatter
+    frontmatter_match = re.match(r"^---\n(.*?)\n---\n?", content, re.DOTALL)
+
+    if frontmatter_match:
+        # Has existing frontmatter
+        yaml_content = frontmatter_match.group(1)
+        rest_of_content = content[frontmatter_match.end() :]
+
+        try:
+            data = yaml.safe_load(yaml_content) or {}
+        except yaml.YAMLError:
+            data = {}
+
+        if not isinstance(data, dict):
+            data = {}
+
+        # Get or create reviewed list
+        reviewed = data.get("reviewed", [])
+        if isinstance(reviewed, str):
+            reviewed = [reviewed]
+        if not isinstance(reviewed, list):
+            reviewed = []
+
+        # Check if entry already exists
+        if file_sha not in reviewed:
+            reviewed.append(file_sha)
+
+        data["reviewed"] = reviewed
+
+        # Rebuild frontmatter
+        new_yaml = yaml.dump(data, default_flow_style=False, sort_keys=False)
+        new_content = f"---\n{new_yaml}---\n{rest_of_content}"
+
+    else:
+        # No existing frontmatter - add one
+        new_frontmatter = f"---\nreviewed:\n  - {file_sha}\n---\n"
+        new_content = new_frontmatter + content
+
+    task_file.write_text(new_content, encoding="utf-8")
+    return True
+
+
+@task.command("mark-reviewed")
+@click.argument("file_path_or_sha", type=str)
+@click.option(
+    "--task",
+    "-t",
+    "task_path",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Path to specific task file (defaults to ongoing task)",
+)
+def task_mark_reviewed(file_path_or_sha: str, task_path: Path | None) -> None:
+    """Mark a file as reviewed in a task's frontmatter.
+
+    FILE_PATH_OR_SHA can be either:
+    - Just a file path (SHA will be auto-resolved to HEAD)
+    - File path with SHA: path/to/file.md:sha
+
+    By default, adds the reviewed entry to the ongoing task (most recent
+    untracked or modified task file). Use --task to specify a different task.
+
+    Example:
+        codebook task mark-reviewed src/main.py
+        codebook task mark-reviewed src/main.py:abc123def
+        codebook task mark-reviewed src/main.py --task ./tasks/MY_TASK.md
+    """
+    cfg = CodeBookConfig.load()
+    tasks_dir = Path(cfg.tasks_dir)
+
+    # Parse input - check if SHA is provided
+    if ":" in file_path_or_sha:
+        file_path_part, sha_part = file_path_or_sha.rsplit(":", 1)
+        if not file_path_part:
+            click.echo("Error: Invalid format. Use 'path/to/file' or 'path/to/file:sha'", err=True)
+            sys.exit(1)
+    else:
+        file_path_part = file_path_or_sha
+        sha_part = "HEAD"
+
+    # Resolve SHA
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", sha_part],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            resolved_sha = result.stdout.strip()
+        else:
+            click.echo(f"Error: Could not resolve SHA '{sha_part}'", err=True)
+            sys.exit(1)
+    except Exception as e:
+        click.echo(f"Error resolving SHA: {e}", err=True)
+        sys.exit(1)
+
+    file_sha = f"{file_path_part}:{resolved_sha}"
+
+    # Find the task file
+    if task_path:
+        target_task = task_path
+    else:
+        target_task = _find_ongoing_task(tasks_dir)
+        if not target_task:
+            click.echo("Error: No ongoing task found.", err=True)
+            click.echo(
+                "Create a new task first with 'codebook task new' or specify --task", err=True
+            )
+            sys.exit(1)
+
+    # Add reviewed entry
+    try:
+        if _add_reviewed_to_task(target_task, file_sha):
+            click.echo(f"Added reviewed entry to {target_task}:")
+            click.echo(f"  - {file_sha}")
+        else:
+            click.echo("Failed to update task file", err=True)
+            sys.exit(1)
+    except Exception as e:
+        click.echo(f"Error updating task file: {e}", err=True)
+        sys.exit(1)
 
 
 # AI Helpers

@@ -91,6 +91,43 @@ By default, `task new` only includes files that have uncommitted changes (staged
 
 The title is converted to `UPPER_SNAKE_CASE` for the filename.
 
+## Review Tasks
+
+Tasks can mark files that has been reviewed during the task execution.
+For that add following to the tasks frontmatter:
+
+```markdown
+---
+reviewed:
+  - path/to/file.md:sha
+  - path/to/another/file.md:sha
+---
+```
+
+Where `sha` is the SHA of the last commit during the task execution.
+This will mark the files as covered by the task, for all lines that were commited
+at or before the `sha` commit.
+
+Coverage is calculated by using git blame and commit ancestry.
+
+### Coverage Priority
+
+When calculating coverage, the following priority order is used:
+
+1. **Traditional task coverage** (highest priority) - Lines are attributed to a task if the commit that added/modified those lines also touched the task file. This represents "I implemented this feature and documented it."
+
+2. **Reviewed coverage** (fallback) - Lines are attributed to a task's `reviewed` entry only if not already covered by traditional task coverage. This represents "I manually reviewed this existing code."
+
+If multiple tasks have `reviewed` entries for the same file, earlier tasks (by date in filename) take precedence.
+
+### Mark Reviewed Command
+
+A helper command is provided to mark the files as reviewed:
+```bash
+codebook task mark-reviewed path/to/file.md
+```
+That assigns the file reviewed status to the ongoing task.
+
 ## Examples
 
 ### Capture modified docs
