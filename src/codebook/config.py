@@ -201,16 +201,16 @@ class CodeBookConfig:
             "recursive": self.recursive,
             "timeout": self.timeout,
             "cache_ttl": self.cache_ttl,
-            "backend": {
-                "url": self.backend.url,
-                "start": self.backend.start,
-            },
+            "backend": {"url": self.backend.url},
             "cicada": {
                 "enabled": self.cicada.enabled,
                 "url": self.cicada.url,
                 "start": self.cicada.start,
             },
         }
+        # Only include start if enabled (no backend is bundled by default)
+        if self.backend.start:
+            result["backend"]["start"] = True
         # Only include AI customization if non-default
         if self.ai.review_prompt != DEFAULT_REVIEW_PROMPT:
             result["ai"] = {"review_prompt": self.ai.review_prompt}

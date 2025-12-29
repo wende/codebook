@@ -19,7 +19,7 @@ Search for functions by name:
 <cicada endpoint="search-function" function_name="render" format="json" jq=".results[0].module" render="code[json]">
 
 ```json
-_file_src.codebook.cli
+_file_cli
 ```
 </cicada>
 
@@ -34,7 +34,7 @@ Search for modules:
 ```html
 <cicada endpoint="search-module" module_name="CodeBookParser" jq=".module,.location">
 CodeBookParser  
-src/codebook/parser.py:130
+parser.py:129
 </cicada>
 ```
 
@@ -95,15 +95,15 @@ Returns structured JSON data:
   "total_matches": 1,
   "results": [
     {
-      "module": "_file_src.codebook.renderer",
+      "module": "_file_renderer",
       "moduledoc": null,
       "function": "get_codebook_version",
       "arity": 0,
-      "full_name": "_file_src.codebook.renderer.get_codebook_version/0",
+      "full_name": "_file_renderer.get_codebook_version/0",
       "signature": "def get_codebook_version() -> str:",
-      "location": "src/codebook/renderer.py:23",
+      "location": "renderer.py:24",
       "type": "public",
-      "doc": "Get the current codebook version from git.\n\n    Returns:\n        Version string in format 'tag (short_sha)' or just 'sha' if no tag.",
+      "doc": "Get the current project version from git.\n\n    Returns:\n        Version string from git describe (tag, tag-N-gSHA, or SHA if no tags).",
       "call_sites": []
     }
   ]
@@ -117,8 +117,8 @@ Returns formatted markdown:
 
 <cicada endpoint="search-function" function_name="get_codebook_version" format="markdown">
 ---
-src/codebook/renderer.py:23
-_file_src.codebook.renderer.get_codebook_version()
+renderer.py:24
+_file_renderer.get_codebook_version()
 *No call sites found*
 
 ---
@@ -140,7 +140,7 @@ Use the `jq` attribute to extract specific values from JSON responses:
 
 ```html
 <cicada endpoint="search-function" function_name="render" jq=".results[0].module">
-_file_src.codebook.cli
+_file_cli
 </cicada>
 ```
 
@@ -148,8 +148,8 @@ _file_src.codebook.cli
 
 ```html
 <cicada endpoint="search-function" function_name="render" jq=".results[].location">
-src/codebook/cli.py:132  
-src/codebook/parser.py:94
+cli.py:140  
+parser.py:93
 </cicada>
 ```
 
@@ -204,7 +204,7 @@ def render_file(
 <cicada endpoint="search-module" file_path="cicada.py" format="json" jq=".location" render="code[python]">
 
 ```python
-src/codebook/cicada.py:86
+cicada.py:86
 ```
 </cicada>
 
@@ -212,7 +212,7 @@ src/codebook/cicada.py:86
 <cicada endpoint="search-module" file_path="tests/test_cicada.py" format="json" jq=".location" render="code[python]" what_calls_it="true" usage_type="tests">
 
 ```python
-tests/test_cicada.py:8
+cicada.py:86
 ```
 </cicada>
 

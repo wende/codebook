@@ -611,13 +611,12 @@ def init(output: Path) -> None:
     import yaml
 
     config = CodeBookConfig(
-        main_dir=".",
+        main_dir="codebook",
         exec=True,
         recursive=True,
         backend=CodeBookConfig._from_dict({}).backend,
         cicada=CodeBookConfig._from_dict({"cicada": {"enabled": True, "start": True}}).cicada,
     )
-    config.backend.start = True
     config.cicada.enabled = True
     config.cicada.start = True
 

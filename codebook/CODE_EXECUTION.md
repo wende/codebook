@@ -55,7 +55,7 @@ now = datetime.now()
 print(f"Generated: {now.strftime('%Y-%m-%d %H:%M')}")
 </exec>
 <output>
-Generated: 2025-12-28 18:08
+Generated: 2025-12-29 12:54
 </output>
 
 ## Example: Importing Project Modules
@@ -124,9 +124,200 @@ pip install ipykernel
 ```
 
 <cicada endpoint="search-module" module_name=".codebook/CODE_EXECUTION.md" format="json" jq="">
+[
 {
-  "module": ".codebook/CODE_EXECUTION.md",
-  "location": ".codebook/CODE_EXECUTION.md:1",
+  "module": ".claude/agents/code-review-expert.md",
+  "location": ".claude/agents/code-review-expert.md:1",
+  "moduledoc": null,
+  "counts": {
+    "public": 0,
+    "private": 0
+  },
+  "functions": []
+},
+{
+  "module": ".claude/agents/code-search.md",
+  "location": ".claude/agents/code-search.md:1",
+  "moduledoc": null,
+  "counts": {
+    "public": 0,
+    "private": 0
+  },
+  "functions": []
+},
+{
+  "module": ".claude/agents/documentation/documentation-expert.md",
+  "location": ".claude/agents/documentation/documentation-expert.md:1",
+  "moduledoc": null,
+  "counts": {
+    "public": 0,
+    "private": 0
+  },
+  "functions": []
+},
+{
+  "module": ".claude/agents/git/git-expert.md",
+  "location": ".claude/agents/git/git-expert.md:1",
+  "moduledoc": null,
+  "counts": {
+    "public": 0,
+    "private": 0
+  },
+  "functions": []
+},
+{
+  "module": ".claude/agents/oracle.md",
+  "location": ".claude/agents/oracle.md:1",
+  "moduledoc": null,
+  "counts": {
+    "public": 0,
+    "private": 0
+  },
+  "functions": []
+},
+{
+  "module": ".claude/agents/refactoring/refactoring-expert.md",
+  "location": ".claude/agents/refactoring/refactoring-expert.md:1",
+  "moduledoc": null,
+  "counts": {
+    "public": 0,
+    "private": 0
+  },
+  "functions": []
+},
+{
+  "module": ".claude/agents/research-expert.md",
+  "location": ".claude/agents/research-expert.md:1",
+  "moduledoc": null,
+  "counts": {
+    "public": 0,
+    "private": 0
+  },
+  "functions": []
+},
+{
+  "module": ".claude/agents/testing/testing-expert.md",
+  "location": ".claude/agents/testing/testing-expert.md:1",
+  "moduledoc": null,
+  "counts": {
+    "public": 0,
+    "private": 0
+  },
+  "functions": []
+},
+{
+  "module": ".claude/agents/triage-expert.md",
+  "location": ".claude/agents/triage-expert.md:1",
+  "moduledoc": null,
+  "counts": {
+    "public": 0,
+    "private": 0
+  },
+  "functions": []
+},
+{
+  "module": ".claude/commands/checkpoint/create.md",
+  "location": ".claude/commands/checkpoint/create.md:1",
+  "moduledoc": null,
+  "counts": {
+    "public": 0,
+    "private": 0
+  },
+  "functions": []
+},
+{
+  "module": ".claude/commands/checkpoint/list.md",
+  "location": ".claude/commands/checkpoint/list.md:1",
+  "moduledoc": null,
+  "counts": {
+    "public": 0,
+    "private": 0
+  },
+  "functions": []
+},
+{
+  "module": ".claude/commands/checkpoint/restore.md",
+  "location": ".claude/commands/checkpoint/restore.md:1",
+  "moduledoc": null,
+  "counts": {
+    "public": 0,
+    "private": 0
+  },
+  "functions": []
+},
+{
+  "module": ".claude/commands/code-review.md",
+  "location": ".claude/commands/code-review.md:1",
+  "moduledoc": null,
+  "counts": {
+    "public": 0,
+    "private": 0
+  },
+  "functions": []
+},
+{
+  "module": ".claude/commands/dev/cleanup.md",
+  "location": ".claude/commands/dev/cleanup.md:1",
+  "moduledoc": null,
+  "counts": {
+    "public": 0,
+    "private": 0
+  },
+  "functions": []
+},
+{
+  "module": ".claude/commands/gh/repo-init.md",
+  "location": ".claude/commands/gh/repo-init.md:1",
+  "moduledoc": null,
+  "counts": {
+    "public": 0,
+    "private": 0
+  },
+  "functions": []
+},
+{
+  "module": ".claude/commands/git/checkout.md",
+  "location": ".claude/commands/git/checkout.md:1",
+  "moduledoc": null,
+  "counts": {
+    "public": 0,
+    "private": 0
+  },
+  "functions": []
+},
+{
+  "module": ".claude/commands/git/commit.md",
+  "location": ".claude/commands/git/commit.md:1",
+  "moduledoc": null,
+  "counts": {
+    "public": 0,
+    "private": 0
+  },
+  "functions": []
+},
+{
+  "module": ".claude/commands/git/ignore-init.md",
+  "location": ".claude/commands/git/ignore-init.md:1",
+  "moduledoc": null,
+  "counts": {
+    "public": 0,
+    "private": 0
+  },
+  "functions": []
+},
+{
+  "module": ".claude/commands/git/push.md",
+  "location": ".claude/commands/git/push.md:1",
+  "moduledoc": null,
+  "counts": {
+    "public": 0,
+    "private": 0
+  },
+  "functions": []
+},
+{
+  "module": ".claude/commands/git/status.md",
+  "location": ".claude/commands/git/status.md:1",
   "moduledoc": null,
   "counts": {
     "public": 0,
@@ -134,6 +325,7 @@ pip install ipykernel
   },
   "functions": []
 }
+]
 </cicada>
 
 ## Error Handling
@@ -147,7 +339,7 @@ x = 1 / 0
 <output>
 Error: ---------------------------------------------------------------------------
 ZeroDivisionError                         Traceback (most recent call last)
-Cell In[17], line 1
+Cell In[9], line 1
 ----> 1 x = 1 / 0
 
 ZeroDivisionError: division by zero
