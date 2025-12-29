@@ -16,7 +16,7 @@ codebook task update ./PATH_TO_THE_TASK_FILE ./scope
 ```
 This will update the task file with the new diffs to the documentation files in the scope.
 
-When no arguments are provided, all modified and untracked task files in the tasks directory are updated using the watch_dir from configuration as the default scope:
+When no arguments are provided, all modified and untracked task files in the tasks directory are updated using the main_dir from configuration as the default scope:
 ```bash
 codebook task update
 ```
@@ -65,9 +65,9 @@ task-prefix: "## TODO: "
 task-suffix: "
 ```
 
-By default the prefix is: 
+By default the prefix is:
 ```markdown
-This file is a diff of a feature specification. I want you to change the code to match the new spec.
+This file is a diff of a feature documentation. I want you to change the code to match the updated documentation.
 ```
 And the suffix is:
 ```markdown

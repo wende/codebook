@@ -36,8 +36,8 @@ index 3453d85..763ec8c 100644
 +
  ---
  
--Rendered by CodeBook [`026a01a`](codebook:codebook.version)
-+Rendered by CodeBook [`026a01a`](codebook:codebook.version)
+-Rendered by CodeBook [`v0.1.0-5-g018d023`](codebook:codebook.version)
++Rendered by CodeBook [`v0.1.0-5-g018d023`](codebook:codebook.version)
  
  --- BACKLINKS ---
  [Tasks](README.md "codebook:backlink")

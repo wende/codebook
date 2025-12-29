@@ -2,12 +2,12 @@
 
 ## Overview
 
-CodeBook is a **Spec Driven Development** framework for AI agents.
+CodeBook is a **Doc Driven Development** framework for AI agents.
 
 **Workflow:**
-1. Write feature specs in markdown (`.codebook/` directory)
+1. Write feature docs in markdown (`.codebook/` directory)
 2. CodeBook renders live values, executes code, and queries your codebase
-3. Turn spec changes into tasks via `codebook task new "Title" ./scope`
+3. Turn doc changes into tasks via `codebook task new "Title" ./scope`
 4. Feed tasks to AI agents for implementation
 
 **Key capabilities:**
@@ -15,7 +15,7 @@ CodeBook is a **Spec Driven Development** framework for AI agents.
 - `<exec lang="python">` — Execute Python via Jupyter
 - `<cicada endpoint="...">` — Live code exploration queries
 - `[text](file.md)` — Bidirectional links with auto-backlinks
-- Task generation from git diffs of spec changes
+- Task generation from git diffs of doc changes
 
 ## Project Structure
 
@@ -77,7 +77,7 @@ codebook/
 ### Config (`config.py`)
 - `CodeBookConfig`: YAML configuration dataclass
 - Loads from `codebook.yml` or searches parent directories
-- Configures watch_dir, tasks_dir, backend, cicada settings
+- Configures main_dir, tasks_dir (relative to main_dir), backend, cicada settings
 
 ### CLI (`cli.py`)
 - Built with Click
@@ -148,7 +148,7 @@ ruff check src/ tests/
 
 ## Design Decisions
 
-1. **Spec Driven Development**: Docs are the source of truth; code implements specs
+1. **Doc Driven Development**: Docs are the source of truth; code implements them
 2. **Standard markdown**: All syntax renders normally in any viewer (GitHub, VSCode, etc.)
 3. **Template preservation**: Template stays in URL, value updates in-place — re-render anytime
 4. **Dataclasses over dicts**: Type safety for results (`RenderResult`, `DiffResult`, `CacheEntry`)

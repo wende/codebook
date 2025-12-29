@@ -73,6 +73,7 @@ ignore = ["E402", "E501", "E741"]  # E402: imports after warning filters; E501: 
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src"]  # Use local source, not installed package
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]

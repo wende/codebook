@@ -87,7 +87,7 @@ diff --git a/path/to/file.md b/path/to/file.md
 
 ---
 
-Rendered by CodeBook [`026a01a`](codebook:codebook.version)
+Rendered by CodeBook [`v0.1.0-5-g018d023`](codebook:codebook.version)
 ```
 
 ### Diff
@@ -121,8 +121,8 @@ index b6cd961..cff79d0 100644
  
  ---
  
--Rendered by CodeBook [`026a01a`](codebook:codebook.version)
-+Rendered by CodeBook [`026a01a`](codebook:codebook.version)
+-Rendered by CodeBook [`v0.1.0-5-g018d023`](codebook:codebook.version)
++Rendered by CodeBook [`v0.1.0-5-g018d023`](codebook:codebook.version)
 ```
 
 ---

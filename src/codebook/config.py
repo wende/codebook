@@ -6,8 +6,17 @@ Supports loading configuration from codebook.yml files.
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import yaml
+
+
+def get_port_from_url(url: str) -> int:
+    """Extract port from URL, with sensible defaults."""
+    parsed = urlparse(url)
+    if parsed.port:
+        return parsed.port
+    return 443 if parsed.scheme == "https" else 80
 
 
 @dataclass
@@ -16,7 +25,6 @@ class CicadaConfig:
 
     enabled: bool = False
     url: str = "http://localhost:9999"
-    port: int = 9999
     start: bool = False  # Whether to start cicada server
 
 
@@ -25,7 +33,6 @@ class BackendConfig:
     """Backend server configuration."""
 
     url: str = "http://localhost:3000"
-    port: int = 3000
     start: bool = False  # Whether to start mock server
 
 
@@ -71,17 +78,17 @@ class AIConfig:
 class CodeBookConfig:
     """CodeBook configuration."""
 
-    # Watch directory
-    watch_dir: str = "."
+    # Main directory to watch
+    main_dir: str = "codebook"
 
     # Tasks directory (automatically ignored in watch and render commands)
-    # Defaults to {watch_dir}/tasks if not specified
+    # Relative to main_dir. Defaults to {main_dir}/tasks if not specified
     tasks_dir: str = ""
 
     def __post_init__(self) -> None:
-        """Set default tasks_dir based on watch_dir if not specified."""
+        """Set default tasks_dir based on main_dir if not specified."""
         if not self.tasks_dir:
-            self.tasks_dir = str(Path(self.watch_dir) / "tasks")
+            self.tasks_dir = str(Path(self.main_dir) / "tasks")
 
     # Features
     exec: bool = False
@@ -153,14 +160,12 @@ class CodeBookConfig:
 
         backend = BackendConfig(
             url=backend_data.get("url", "http://localhost:3000"),
-            port=backend_data.get("port", 3000),
             start=backend_data.get("start", False),
         )
 
         cicada = CicadaConfig(
             enabled=cicada_data.get("enabled", False),
             url=cicada_data.get("url", "http://localhost:9999"),
-            port=cicada_data.get("port", 9999),
             start=cicada_data.get("start", False),
         )
 
@@ -169,12 +174,12 @@ class CodeBookConfig:
             review_prompt=ai_data.get("review_prompt", DEFAULT_REVIEW_PROMPT),
         )
 
-        watch_dir = data.get("watch_dir", ".")
-        # Default tasks_dir to {watch_dir}/tasks if not specified
-        tasks_dir = data.get("tasks_dir", str(Path(watch_dir) / "tasks"))
+        main_dir = data.get("main_dir", data.get("watch_dir", "codebook"))
+        # Default tasks_dir to {main_dir}/tasks if not specified
+        tasks_dir = data.get("tasks_dir", str(Path(main_dir) / "tasks"))
 
         return cls(
-            watch_dir=watch_dir,
+            main_dir=main_dir,
             tasks_dir=tasks_dir,
             exec=data.get("exec", False),
             recursive=data.get("recursive", True),
@@ -190,7 +195,7 @@ class CodeBookConfig:
     def to_dict(self) -> dict[str, Any]:
         """Convert config to dictionary."""
         result = {
-            "watch_dir": self.watch_dir,
+            "main_dir": self.main_dir,
             "tasks_dir": self.tasks_dir,
             "exec": self.exec,
             "recursive": self.recursive,
@@ -198,13 +203,11 @@ class CodeBookConfig:
             "cache_ttl": self.cache_ttl,
             "backend": {
                 "url": self.backend.url,
-                "port": self.backend.port,
                 "start": self.backend.start,
             },
             "cicada": {
                 "enabled": self.cicada.enabled,
                 "url": self.cicada.url,
-                "port": self.cicada.port,
                 "start": self.cicada.start,
             },
         }

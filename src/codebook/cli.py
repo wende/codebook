@@ -29,7 +29,7 @@ import click
 
 from .cicada import CicadaClient
 from .client import CodeBookClient
-from .config import CodeBookConfig
+from .config import CodeBookConfig, get_port_from_url
 from .differ import CodeBookDiffer
 from .kernel import CodeBookKernel
 from .renderer import CodeBookRenderer
@@ -501,9 +501,10 @@ def run(ctx: click.Context, config: Path | None) -> None:
     try:
         # Start cicada if configured
         if cfg.cicada.start:
-            click.echo(f"Starting Cicada on port {cfg.cicada.port}...")
+            cicada_port = get_port_from_url(cfg.cicada.url)
+            click.echo(f"Starting Cicada on port {cicada_port}...")
             proc = subprocess.Popen(
-                ["cicada", "serve", "--port", str(cfg.cicada.port)],
+                ["cicada", "serve", "--port", str(cicada_port)],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
@@ -511,10 +512,11 @@ def run(ctx: click.Context, config: Path | None) -> None:
 
         # Start mock backend if configured
         if cfg.backend.start:
-            click.echo(f"Starting backend on port {cfg.backend.port}...")
+            backend_port = get_port_from_url(cfg.backend.url)
+            click.echo(f"Starting backend on port {backend_port}...")
             mock_server = Path(__file__).parent.parent.parent.parent / "examples" / "mock_server.py"
             proc = subprocess.Popen(
-                ["python", str(mock_server), "--port", str(cfg.backend.port)],
+                ["python", str(mock_server), "--port", str(backend_port)],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
@@ -535,7 +537,7 @@ def run(ctx: click.Context, config: Path | None) -> None:
 
         # Create kernel if exec enabled
         kernel = None
-        directory = Path(cfg.watch_dir)
+        directory = Path(cfg.main_dir)
         if cfg.exec:
             click.echo("Starting Jupyter kernel...")
             kernel = CodeBookKernel(cwd=str(directory.resolve()))
@@ -607,7 +609,7 @@ def init(output: Path) -> None:
     import yaml
 
     config = CodeBookConfig(
-        watch_dir=".",
+        main_dir=".",
         exec=True,
         recursive=True,
         backend=CodeBookConfig._from_dict({}).backend,
@@ -1239,7 +1241,7 @@ def task_update(ctx: click.Context, task_file: Path | None, scope: Path | None) 
     all modified and untracked task files in the tasks directory will be updated.
 
     SCOPE is the directory to look for modified documentation files.
-    If not provided, uses the watch_dir from codebook.yml configuration.
+    If not provided, uses the main_dir from codebook.yml configuration.
 
     Example:
         codebook task update ./tasks/202412281530-FEATURE.md ./docs
@@ -1247,9 +1249,9 @@ def task_update(ctx: click.Context, task_file: Path | None, scope: Path | None) 
     """
     cfg = CodeBookConfig.load()
 
-    # Default scope to watch_dir from config
+    # Default scope to main_dir from config
     if scope is None:
-        scope = Path(cfg.watch_dir)
+        scope = Path(cfg.main_dir)
         if not scope.exists():
             click.echo(f"Error: Default scope directory does not exist: {scope}", err=True)
             sys.exit(1)
@@ -1478,9 +1480,9 @@ def task_coverage(path_glob: str, detailed: bool, short: bool, output_json: bool
     """
 
     cfg = CodeBookConfig.load()
-    watch_dir = Path(cfg.watch_dir)
+    main_dir = Path(cfg.main_dir)
 
-    if not watch_dir.exists():
+    if not main_dir.exists():
         click.echo("No codebook directory found.", err=True)
         return
 

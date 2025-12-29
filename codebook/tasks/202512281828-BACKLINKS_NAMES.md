@@ -33,7 +33,7 @@ index d2b663f..8d42f31 100644
  
  See also: [Templates](TEMPLATES.md)
  
--Rendered by CodeBook [`dev`](codebook:codebook.version)
+-Rendered by CodeBook [`v0.1.0-5-g018d023`](codebook:codebook.version)
 -
  --- BACKLINKS ---
 -[Syntax](TEMPLATES.md "codebook:backlink")

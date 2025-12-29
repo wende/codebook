@@ -26,11 +26,12 @@ codebook run -c path/to/codebook.yml
 ## Full Configuration Reference
 
 ```yaml
-# Directory to store specs, features and task files
-watch_dir: .
+# Main directory to watch
+main_dir: codebook
 
 # Directory containing tasks. Automatically ignored in watch and render commands.
-tasks_dir: .codebook/tasks
+# Relative to main_dir
+tasks_dir: codebook/tasks
 
 # Enable Python code execution
 exec: true
@@ -49,9 +50,6 @@ backend:
   # Backend URL for template resolution
   url: http://localhost:3000
 
-  # Port for mock server (if starting)
-  port: 3000
-
   # Auto-start mock server
   start: true
 
@@ -62,9 +60,6 @@ cicada:
 
   # Cicada server URL
   url: http://localhost:9999
-
-  # Port for Cicada (if starting)
-  port: 9999
 
   # Auto-start Cicada server
   start: true
@@ -86,7 +81,7 @@ ai:
 ## Minimal Configuration
 
 ```yaml
-watch_dir: docs
+main_dir: codebook
 exec: true
 cicada:
   enabled: true
@@ -97,7 +92,8 @@ cicada:
 ### Documentation Project
 
 ```yaml
-watch_dir: docs
+main_dir: docs
+tasks_dir: docs/tasks  # Relative to main_dir
 exec: true
 recursive: true
 backend:
@@ -110,21 +106,23 @@ cicada:
 ### Local Development
 
 ```yaml
-watch_dir: .codebook
+main_dir: codebook
+tasks_dir: codebook/tasks  # Relative to main_dir
 exec: true
 backend:
   start: true
-  port: 3000
+  url: http://localhost:3000
 cicada:
   enabled: true
   start: true
-  port: 9999
+  url: http://localhost:9999
 ```
 
 ### CI/CD Pipeline
 
 ```yaml
-watch_dir: docs
+main_dir: docs
+tasks_dir: docs/tasks  # Relative to main_dir
 exec: false  # Don't execute code in CI
 recursive: true
 timeout: 30.0
@@ -138,7 +136,8 @@ cicada:
 ### Custom AI Review Prompt
 
 ```yaml
-watch_dir: .codebook
+main_dir: codebook
+tasks_dir: codebook/tasks  # Relative to main_dir
 ai:
   review_prompt: |
     Review this task for completeness and accuracy.

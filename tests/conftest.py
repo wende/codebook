@@ -110,7 +110,12 @@ def git_commit(repo_path: Path, message: str = "Initial") -> None:
 
 @pytest.fixture
 def git_repo(temp_dir: Path) -> Path:
-    """Create a temporary git repository."""
+    """Create a temporary git repository with default CodeBook config.
+
+    Creates:
+    - Git repository with user config
+    - Default codebook.yml with tasks_dir: tasks
+    """
     env = get_clean_git_env()
     # Combine init and config into a single shell command
     subprocess.run(
@@ -120,4 +125,6 @@ def git_repo(temp_dir: Path) -> Path:
         shell=True,
         env=env,
     )
+    # Create default CodeBook config so tests don't need to repeat this
+    (temp_dir / "codebook.yml").write_text("main_dir: .\ntasks_dir: tasks\n")
     return temp_dir

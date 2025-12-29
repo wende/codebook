@@ -335,7 +335,7 @@ class TestTaskCommands:
 
     @pytest.fixture
     def git_repo(self, runner: CliRunner):
-        """Create a temporary git repository with the CLI runner."""
+        """Create a temporary git repository with the CLI runner and default config."""
         with runner.isolated_filesystem() as tmpdir:
             tmpdir_path = Path(tmpdir)
             # Initialize git repo with clean environment
@@ -357,6 +357,8 @@ class TestTaskCommands:
                 check=True,
                 env=env,
             )
+            # Create default CodeBook config
+            (tmpdir_path / "codebook.yml").write_text("main_dir: .\ntasks_dir: tasks\n")
             yield tmpdir_path
 
     def test_task_help(self, runner: CliRunner):
@@ -692,6 +694,10 @@ class TestTaskCommands:
         import os
 
         runner = CliRunner()
+
+        # Create tasks directory (but no task files)
+        (git_repo / "tasks").mkdir(parents=True)
+
         old_cwd = os.getcwd()
         try:
             os.chdir(git_repo)
@@ -704,6 +710,8 @@ class TestTaskCommands:
     def test_task_coverage_not_git_repo(self, runner: CliRunner):
         """Should error when not in a git repository."""
         with runner.isolated_filesystem() as tmpdir:
+            # Create config with main_dir and tasks_dir
+            Path(tmpdir, "codebook.yml").write_text("main_dir: .\ntasks_dir: tasks\n")
             tasks_dir = Path(tmpdir) / "tasks"
             tasks_dir.mkdir(parents=True)
             (tasks_dir / "test.md").write_text("test")
@@ -1021,6 +1029,8 @@ index 0000000..{commit_sha}
     def test_task_stats_not_git_repo(self, runner: CliRunner):
         """Should error when not in a git repository."""
         with runner.isolated_filesystem() as tmpdir:
+            # Create config with tasks_dir
+            Path(tmpdir, "codebook.yml").write_text("tasks_dir: tasks\n")
             tasks_dir = Path(tmpdir) / "tasks"
             tasks_dir.mkdir(parents=True)
             (tasks_dir / "test.md").write_text("test")
@@ -1565,7 +1575,7 @@ Some notes here
 
         # Create codebook.yml
         config_file = git_repo / "codebook.yml"
-        config_file.write_text("watch_dir: codebook\n")
+        config_file.write_text("main_dir: codebook\n")
 
         result = runner.invoke(main, ["task", "update"])
 
@@ -1576,21 +1586,23 @@ Some notes here
         """Should find and update untracked task files."""
         runner = CliRunner()
 
-        # Create watch_dir with a doc file
-        watch_dir = git_repo / "codebook"
-        watch_dir.mkdir(parents=True)
-        doc1 = watch_dir / "doc1.md"
+        # Create main_dir with a doc file
+        main_dir = git_repo / "codebook"
+        main_dir.mkdir(parents=True)
+        doc1 = main_dir / "doc1.md"
         doc1.write_text("Original doc")
+        subprocess.run(["git", "add", "."], cwd=git_repo, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "Initial"], cwd=git_repo, capture_output=True)
 
         # Create tasks directory with an untracked task file
-        tasks_dir = watch_dir / "tasks"
+        tasks_dir = main_dir / "tasks"
         tasks_dir.mkdir()
         task_file = tasks_dir / "202412281530-TEST.md"
         task_file.write_text("# Test Task\n\n")
 
         # Create codebook.yml
         config_file = git_repo / "codebook.yml"
-        config_file.write_text("watch_dir: codebook\n")
+        config_file.write_text("main_dir: codebook\n")
 
         result = runner.invoke(main, ["task", "update"])
 
@@ -1599,19 +1611,19 @@ Some notes here
         assert "TEST.md" in result.output
 
     def test_task_update_no_args_uses_default_scope(self, git_repo: Path):
-        """Should use watch_dir from config as default scope."""
+        """Should use main_dir from config as default scope."""
         runner = CliRunner()
 
-        # Create watch_dir with a modified doc file
-        watch_dir = git_repo / "codebook"
-        watch_dir.mkdir(parents=True)
-        doc1 = watch_dir / "doc1.md"
+        # Create main_dir with a modified doc file
+        main_dir = git_repo / "codebook"
+        main_dir.mkdir(parents=True)
+        doc1 = main_dir / "doc1.md"
         doc1.write_text("Original doc")
         subprocess.run(["git", "add", "."], cwd=git_repo, capture_output=True)
         subprocess.run(["git", "commit", "-m", "Initial"], cwd=git_repo, capture_output=True)
 
         # Create tasks directory with an untracked task file
-        tasks_dir = watch_dir / "tasks"
+        tasks_dir = main_dir / "tasks"
         tasks_dir.mkdir()
         task_file = tasks_dir / "202412281530-TEST.md"
         task_file.write_text("# Test Task\n\n")
@@ -1621,7 +1633,7 @@ Some notes here
 
         # Create codebook.yml
         config_file = git_repo / "codebook.yml"
-        config_file.write_text("watch_dir: codebook\n")
+        config_file.write_text("main_dir: codebook\n")
 
         result = runner.invoke(main, ["task", "update"])
 
@@ -1719,7 +1731,7 @@ class TestAICommands:
 
             # Create codebook.yml
             config_file = Path(tmpdir) / "codebook.yml"
-            config_file.write_text("watch_dir: codebook\n")
+            config_file.write_text("main_dir: codebook\n")
 
             # Initialize git repo and commit the task file
             subprocess.run(["git", "init"], cwd=tmpdir, capture_output=True)
@@ -2020,7 +2032,7 @@ class TestAICommands:
 
             # Create codebook.yml
             config_file = Path(tmpdir) / "codebook.yml"
-            config_file.write_text("watch_dir: codebook\n")
+            config_file.write_text("main_dir: codebook\n")
 
             # Initialize git repo (files are untracked)
             subprocess.run(["git", "init"], cwd=tmpdir, capture_output=True)
@@ -2060,7 +2072,7 @@ class TestAICommands:
 
             # Create codebook.yml
             config_file = Path(tmpdir) / "codebook.yml"
-            config_file.write_text("watch_dir: codebook\n")
+            config_file.write_text("main_dir: codebook\n")
 
             # Initialize git repo and commit
             subprocess.run(["git", "init"], cwd=tmpdir, capture_output=True)
@@ -2109,7 +2121,7 @@ class TestAICommands:
 
             # Create codebook.yml
             config_file = Path(tmpdir) / "codebook.yml"
-            config_file.write_text("watch_dir: codebook\n")
+            config_file.write_text("main_dir: codebook\n")
 
             # Initialize git repo
             subprocess.run(["git", "init"], cwd=tmpdir, capture_output=True)
@@ -2147,7 +2159,7 @@ class TestAICommands:
 
             # Create codebook.yml
             config_file = Path(tmpdir) / "codebook.yml"
-            config_file.write_text("watch_dir: codebook\n")
+            config_file.write_text("main_dir: codebook\n")
 
             # Initialize git repo
             subprocess.run(["git", "init"], cwd=tmpdir, capture_output=True)

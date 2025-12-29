@@ -1,7 +1,7 @@
 # CodeBook Configuration
 # Run with: codebook run
 
-watch_dir: codebook
+main_dir: codebook
 exec: true
 recursive: true
 timeout: 10.0
@@ -9,11 +9,9 @@ cache_ttl: 60.0
 
 backend:
   url: http://localhost:3000
-  port: 3000
   start: true  # Start mock server automatically
 
 cicada:
   enabled: true
   url: http://localhost:9999
-  port: 9999
   start: true  # Start cicada server automatically
