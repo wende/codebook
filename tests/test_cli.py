@@ -1299,6 +1299,103 @@ This task reviews multiple files.
         # Both files should be covered
         assert "100.0%" in result.output or "Overall Coverage:" in result.output
 
+    def test_task_coverage_with_short_sha(self, git_repo: Path):
+        """Should resolve short SHAs in reviewed entries to full SHAs."""
+        runner = CliRunner()
+
+        # Create a source file and commit it
+        src_file = git_repo / "short_sha_code.py"
+        src_file.write_text("def short_sha():\n    return True\n")
+        subprocess.run(["git", "add", "short_sha_code.py"], cwd=git_repo, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Add short sha code"],
+            cwd=git_repo,
+            capture_output=True,
+        )
+
+        # Get the full commit SHA and extract a short version
+        result_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=git_repo,
+            capture_output=True,
+            text=True,
+        )
+        full_sha = result_sha.stdout.strip()
+        short_sha = full_sha[:7]  # Use 7-char short SHA
+
+        # Create a task file with short SHA in reviewed frontmatter
+        tasks_dir = git_repo / "tasks"
+        tasks_dir.mkdir(parents=True)
+        task_file = tasks_dir / "202412281530-SHORT_SHA_TASK.md"
+        task_content = f"""---
+reviewed:
+  - short_sha_code.py:{short_sha}
+---
+# Short SHA Task
+
+This task uses a short SHA for reviewed entry.
+"""
+        task_file.write_text(task_content)
+
+        # Commit the task file
+        subprocess.run(["git", "add", str(task_file)], cwd=git_repo, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Add short sha task"],
+            cwd=git_repo,
+            capture_output=True,
+        )
+
+        # Run coverage
+        result = runner.invoke(main, ["task", "coverage", str(git_repo)])
+
+        assert result.exit_code == 0
+        assert "reviewed file(s)" in result.output
+        assert "short_sha_code.py" in result.output
+        # The file should show as covered (short SHA was resolved)
+        assert "100.0%" in result.output or "✓" in result.output
+
+    def test_task_coverage_skips_binary_files(self, git_repo: Path):
+        """Should skip binary files in coverage analysis."""
+        runner = CliRunner()
+
+        # Create a text source file
+        src_file = git_repo / "text_code.py"
+        src_file.write_text("def text():\n    return True\n")
+
+        # Create a binary file (PNG header bytes)
+        binary_file = git_repo / "image.png"
+        binary_file.write_bytes(b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00")
+
+        subprocess.run(["git", "add", "."], cwd=git_repo, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Add text and binary files"],
+            cwd=git_repo,
+            capture_output=True,
+        )
+
+        # Create a minimal task file to enable coverage
+        tasks_dir = git_repo / "tasks"
+        tasks_dir.mkdir(parents=True)
+        task_file = tasks_dir / "202412281530-BINARY_TEST.md"
+        task_file.write_text("# Binary Test\n\nTest binary file skipping.\n")
+        subprocess.run(["git", "add", str(task_file)], cwd=git_repo, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Add binary test task"],
+            cwd=git_repo,
+            capture_output=True,
+        )
+
+        # Run coverage
+        result = runner.invoke(main, ["task", "coverage", str(git_repo)])
+
+        assert result.exit_code == 0
+        # Should mention skipping binary files
+        assert "Skipped" in result.output and "binary" in result.output
+        # Should analyze text file
+        assert "text_code.py" in result.output
+        # Should NOT analyze binary file
+        assert "image.png" not in result.output or "Could not analyze" not in result.output
+
     def test_task_mark_reviewed_help(self, runner: CliRunner):
         """Should show mark-reviewed help."""
         result = runner.invoke(main, ["task", "mark-reviewed", "--help"])

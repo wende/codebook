@@ -1494,6 +1494,66 @@ def _parse_task_frontmatter(content: str) -> dict:
         return {}
 
 
+def _is_binary_file(file_path: Path, git_root: Path) -> bool:
+    """Check if a file is binary using git's detection.
+
+    Args:
+        file_path: Path to the file to check
+        git_root: Path to the git root directory
+
+    Returns:
+        True if the file is binary, False otherwise
+    """
+    try:
+        # Use git diff to detect binary files - it returns "Binary files differ"
+        # for binary files when comparing with empty tree
+        result = subprocess.run(
+            [
+                "git",
+                "diff",
+                "--numstat",
+                "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+                "--",
+                str(file_path),
+            ],
+            cwd=git_root,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            # Binary files show as "-\t-\t" in numstat output
+            parts = result.stdout.strip().split("\t")
+            if len(parts) >= 2 and parts[0] == "-" and parts[1] == "-":
+                return True
+        return False
+    except Exception:
+        return False
+
+
+def _resolve_sha(sha: str, git_root: Path) -> str | None:
+    """Resolve a SHA (short or full) to its full form.
+
+    Args:
+        sha: The SHA to resolve (can be short or full)
+        git_root: Path to the git root directory
+
+    Returns:
+        Full SHA if resolvable, None otherwise
+    """
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", sha],
+            cwd=git_root,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+        return None
+    except Exception:
+        return None
+
+
 def _is_ancestor_commit(ancestor_sha: str, descendant_sha: str, git_root: Path) -> bool:
     """Check if ancestor_sha is an ancestor of (or equal to) descendant_sha.
 
@@ -1522,14 +1582,18 @@ def _is_ancestor_commit(ancestor_sha: str, descendant_sha: str, git_root: Path) 
         return False
 
 
-def _extract_reviewed_files(tasks_dir: Path) -> dict[str, list[tuple[str, str]]]:
+def _extract_reviewed_files(
+    tasks_dir: Path, git_root: Path | None = None
+) -> dict[str, list[tuple[str, str]]]:
     """Extract reviewed file:sha pairs from task frontmatter.
 
     Args:
         tasks_dir: Path to the tasks directory
+        git_root: Path to the git root directory (for resolving short SHAs)
 
     Returns:
         Dict mapping file paths to list of (sha, task_name) tuples
+        SHAs are resolved to full form when git_root is provided.
     """
     reviewed_files: dict[str, list[tuple[str, str]]] = {}
 
@@ -1560,6 +1624,11 @@ def _extract_reviewed_files(tasks_dir: Path) -> dict[str, list[tuple[str, str]]]
                     file_path = file_path.strip()
                     sha = sha.strip()
                     if file_path and sha:
+                        # Resolve short SHA to full SHA if git_root is available
+                        if git_root and len(sha) < 40:
+                            resolved = _resolve_sha(sha, git_root)
+                            if resolved:
+                                sha = resolved
                         if file_path not in reviewed_files:
                             reviewed_files[file_path] = []
                         reviewed_files[file_path].append((sha, task_name))
@@ -1687,8 +1756,8 @@ def task_coverage(path_glob: str, detailed: bool, short: bool, output_json: bool
         click.echo("Extracting commits from task files...")
     task_commits = extract_commits_from_tasks()
 
-    # Extract reviewed files from task frontmatter
-    reviewed_files = _extract_reviewed_files(tasks_dir)
+    # Extract reviewed files from task frontmatter (with short SHA resolution)
+    reviewed_files = _extract_reviewed_files(tasks_dir, git_root)
 
     if not task_commits and not reviewed_files:
         click.echo("No commits found in task files.", err=True)
@@ -1730,11 +1799,23 @@ def task_coverage(path_glob: str, detailed: bool, short: bool, output_json: bool
         if f.exists() and not str(f.resolve()).startswith(str(tasks_dir_resolved))
     ]
 
+    # Filter out binary files (they can't be blamed meaningfully)
+    binary_count = 0
+    text_files = []
+    for f in files_to_analyze:
+        if _is_binary_file(f, git_root):
+            binary_count += 1
+        else:
+            text_files.append(f)
+    files_to_analyze = text_files
+
     if not files_to_analyze:
         click.echo("No files to analyze in scope.", err=True)
         return
 
     if not output_json:
+        if binary_count > 0:
+            click.echo(f"Skipped {binary_count} binary file(s)")
         click.echo(f"Analyzing {len(files_to_analyze)} file(s)...\n")
 
     # Analyze coverage per file
