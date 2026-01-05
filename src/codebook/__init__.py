@@ -21,6 +21,7 @@ from .differ import CodeBookDiffer, DiffResult
 from .kernel import CodeBookKernel, ExecutionResult
 from .parser import CodeBookLink, CodeBookParser, Frontmatter, LinkType
 from .renderer import CodeBookRenderer, RenderResult
+from .utils import CodeBookStatusChecker, LinkValidationResult, StatusReport
 from .watcher import CodeBookWatcher
 
 __all__ = [
@@ -39,4 +40,7 @@ __all__ = [
     "CicadaClient",
     "CicadaResult",
     "CodeBookConfig",
+    "CodeBookStatusChecker",
+    "LinkValidationResult",
+    "StatusReport",
 ]

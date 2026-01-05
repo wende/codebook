@@ -31,6 +31,7 @@ codebook run
 - **[Tasks](TASKS.md)** - Task management
 - **[AI Helpers](AI_HELPERS.md)** - AI helpers for task review
 - **[Edge Cases](edge-cases/README.md)** - Implementation details and behaviors
+- **[Utils](UTILS.md)** - Utility functions and helpers
 
 ## CLI Commands
 
@@ -55,7 +56,7 @@ codebook run
 
 | Metric    | Value                               |
 | --------- | ----------------------------------- |
-| Version   | [`v0.1.1-3-g42c6e43`](codebook:codebook.version)  |
+| Version   | [`v0.1.1-4-g3aeabd4`](codebook:codebook.version)  |
 
 ## Documentation Files
 

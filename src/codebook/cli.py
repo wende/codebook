@@ -2624,5 +2624,243 @@ def _build_agent_command(agent: str, prompt: str, agent_args: tuple[str, ...]) -
         return [executable, *args, prompt]
 
 
+# Utils command group
+
+
+@main.group()
+def utils() -> None:
+    """Utility commands for CodeBook environment.
+
+    Health checks, status reports, and diagnostic tools.
+
+    Example:
+        codebook utils status
+    """
+    pass
+
+
+@utils.command("status")
+@click.option(
+    "--check-backend/--no-check-backend",
+    default=False,
+    help="Check backend connectivity",
+)
+@click.option(
+    "--check-cicada/--no-check-cicada",
+    default=False,
+    help="Check Cicada server connectivity",
+)
+@click.pass_context
+def utils_status(
+    ctx: click.Context,
+    check_backend: bool,
+    check_cicada: bool,
+) -> None:
+    """Show CodeBook environment status and health.
+
+    Provides a comprehensive health check including:
+    - Task statistics
+    - Link validation (file references, section anchors)
+    - EXEC block syntax validation
+    - CICADA block endpoint validation
+    - Optional backend/Cicada connectivity checks
+
+    Exit codes:
+        0 - All checks passed
+        1 - Warnings found (broken links, invalid blocks)
+        2 - Errors found (backend unreachable, critical failures)
+
+    Example:
+        codebook utils status
+        codebook utils status --check-backend --check-cicada
+    """
+    import time
+
+    from .config import CodeBookConfig
+    from .utils import CodeBookStatusChecker, StatusReport
+
+    # Load configuration
+    try:
+        cfg = CodeBookConfig.load()
+        base_dir = Path.cwd()
+        tasks_dir = base_dir / cfg.tasks_dir
+    except Exception as e:
+        click.echo(f"Error loading configuration: {e}", err=True)
+        sys.exit(2)
+
+    # Initialize checker
+    checker = CodeBookStatusChecker(base_dir)
+    report = StatusReport(
+        backend_check_requested=check_backend,
+        cicada_check_requested=check_cicada,
+    )
+
+    # 1. Task statistics
+    click.echo("CodeBook Environment Status")
+    click.echo("=" * 60)
+    click.echo()
+    click.echo("📋 Task Statistics")
+    click.echo("-" * 60)
+
+    total_tasks, recent_tasks = checker.get_task_statistics(tasks_dir)
+    report.total_tasks = total_tasks
+    report.recent_tasks = recent_tasks
+
+    click.echo(f"Total tasks: {total_tasks}")
+    if recent_tasks:
+        click.echo("Recent tasks (last 5):")
+        for task in recent_tasks:
+            click.echo(f"  - {task.name}")
+    click.echo()
+
+    # 2. Link health
+    click.echo("🔗 Link Health")
+    click.echo("-" * 60)
+
+    # Scan main documentation directory
+    main_dir = base_dir / cfg.main_dir
+    if main_dir.exists():
+        validation_results = checker.scan_directory(main_dir)
+    else:
+        validation_results = []
+
+    # Categorize results
+    broken_file_links = []
+    broken_section_links = []
+    invalid_exec_blocks = []
+    invalid_cicada_blocks = []
+
+    for result in validation_results:
+        if not result.is_valid:
+            if result.link.link_type.value == "markdown_link":
+                if "Section not found" in (result.error_message or ""):
+                    broken_section_links.append(result)
+                else:
+                    broken_file_links.append(result)
+            elif result.link.link_type.value == "exec":
+                invalid_exec_blocks.append(result)
+            elif result.link.link_type.value == "cicada":
+                invalid_cicada_blocks.append(result)
+
+    report.total_links = len(validation_results)
+    report.broken_file_links = broken_file_links
+    report.broken_section_links = broken_section_links
+    report.invalid_exec_blocks = invalid_exec_blocks
+    report.invalid_cicada_blocks = invalid_cicada_blocks
+
+    click.echo(f"Total links scanned: {len(validation_results)}")
+
+    if broken_file_links:
+        click.echo(f"\n❌ Broken file links: {len(broken_file_links)}")
+        for result in broken_file_links:
+            click.echo(
+                f"  {result.file_path.relative_to(base_dir)}:{result.line_number} - {result.error_message}"
+            )
+    else:
+        click.echo("✅ No broken file links")
+
+    if broken_section_links:
+        click.echo(f"\n❌ Broken section anchors: {len(broken_section_links)}")
+        for result in broken_section_links:
+            click.echo(
+                f"  {result.file_path.relative_to(base_dir)}:{result.line_number} - {result.error_message}"
+            )
+    else:
+        click.echo("✅ No broken section anchors")
+
+    if invalid_exec_blocks:
+        click.echo(f"\n❌ Invalid EXEC blocks: {len(invalid_exec_blocks)}")
+        for result in invalid_exec_blocks:
+            click.echo(
+                f"  {result.file_path.relative_to(base_dir)}:{result.line_number} - {result.error_message}"
+            )
+    else:
+        click.echo("✅ No invalid EXEC blocks")
+
+    if invalid_cicada_blocks:
+        click.echo(f"\n❌ Invalid CICADA blocks: {len(invalid_cicada_blocks)}")
+        for result in invalid_cicada_blocks:
+            click.echo(
+                f"  {result.file_path.relative_to(base_dir)}:{result.line_number} - {result.error_message}"
+            )
+    else:
+        click.echo("✅ No invalid CICADA blocks")
+
+    click.echo()
+
+    # 3. Backend connectivity (optional)
+    if check_backend:
+        click.echo("🌐 Backend Connectivity")
+        click.echo("-" * 60)
+
+        # Get client from context or create from config
+        client = ctx.obj.get("client")
+        if not client:
+            client = CodeBookClient(
+                base_url=cfg.backend.url if hasattr(cfg, "backend") else "http://localhost:3000",
+                timeout=10.0,
+                cache_ttl=60.0,
+            )
+        report.backend_url = client.base_url
+
+        try:
+            start_time = time.time()
+            client.health_check()
+            response_time = time.time() - start_time
+
+            report.backend_healthy = True
+            report.backend_response_time = response_time
+            click.echo(f"✅ Backend healthy at {client.base_url}")
+            click.echo(f"   Response time: {response_time:.3f}s")
+        except Exception as e:
+            report.backend_healthy = False
+            report.backend_error = str(e)
+            click.echo(f"❌ Backend unreachable at {client.base_url}")
+            click.echo(f"   Error: {e}")
+
+        click.echo()
+
+    # 4. Cicada connectivity (optional)
+    if check_cicada:
+        click.echo("🔍 Cicada Integration")
+        click.echo("-" * 60)
+
+        from .cicada import CicadaClient
+
+        # Get Cicada URL from context or config
+        cicada_url = ctx.obj.get("cicada_url")
+        if not cicada_url and hasattr(cfg, "cicada"):
+            cicada_url = cfg.cicada.url
+        if not cicada_url:
+            cicada_url = "http://localhost:9999"
+        report.cicada_url = cicada_url
+
+        try:
+            cicada = CicadaClient(base_url=cicada_url)
+            # Try a simple query to check if Cicada is responsive
+            cicada.query(keywords=["test"])
+
+            report.cicada_healthy = True
+            click.echo(f"✅ Cicada healthy at {cicada_url}")
+        except Exception as e:
+            report.cicada_healthy = False
+            report.cicada_error = str(e)
+            click.echo(f"❌ Cicada unreachable at {cicada_url}")
+            click.echo(f"   Error: {e}")
+
+        click.echo()
+
+    # Summary
+    click.echo("=" * 60)
+    if report.has_errors:
+        click.echo("❌ Status: ERRORS - Critical issues found")
+    elif report.has_warnings:
+        click.echo("⚠️  Status: WARNINGS - Some issues found")
+    else:
+        click.echo("✅ Status: HEALTHY - All checks passed")
+
+    sys.exit(report.exit_code)
+
+
 if __name__ == "__main__":
     main()
