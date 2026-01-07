@@ -5,15 +5,50 @@ import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import click
 import pytest
 from click.testing import CliRunner
 
-from codebook.cli import _build_agent_command, main
+from codebook.cli import _build_agent_command, get_client_from_context, main
+from codebook.client import CodeBookClient
 from codebook.config import DEFAULT_REVIEW_PROMPT, AIConfig, CodeBookConfig
 
 # Import helper from conftest (pytest loads fixtures automatically, but we need explicit import)
 sys.path.insert(0, str(Path(__file__).parent))
 from conftest import get_clean_git_env
+
+
+class TestClientHelper:
+    """Test get_client_from_context helper function."""
+
+    def test_get_client_from_context_success(self):
+        """Test successful client retrieval from context."""
+        # Create mock context with client
+        ctx = click.Context(click.Command("test"))
+        ctx.obj = {
+            "client": CodeBookClient(base_url="http://test:8000", timeout=5.0, cache_ttl=30.0)
+        }
+
+        client = get_client_from_context(ctx)
+
+        assert client.base_url == "http://test:8000"
+        assert client.timeout == 5.0
+
+    def test_get_client_from_context_no_obj(self):
+        """Test error when context.obj not initialized."""
+        ctx = click.Context(click.Command("test"))
+        # ctx.obj is None
+
+        with pytest.raises(click.ClickException, match="Client not initialized"):
+            get_client_from_context(ctx)
+
+    def test_get_client_from_context_no_client_key(self):
+        """Test error when context.obj exists but no 'client' key."""
+        ctx = click.Context(click.Command("test"))
+        ctx.obj = {}  # Empty dict, no 'client' key
+
+        with pytest.raises(click.ClickException, match="Client not initialized"):
+            get_client_from_context(ctx)
 
 
 class TestCLI:
@@ -1394,7 +1429,7 @@ This task uses a short SHA for reviewed entry.
         # Should analyze text file
         assert "text_code.py" in result.output
         # Should NOT analyze binary file
-        assert "image.png" not in result.output or "Could not analyze" not in result.output
+        assert "image.png" not in result.output
 
     def test_task_mark_reviewed_help(self, runner: CliRunner):
         """Should show mark-reviewed help."""

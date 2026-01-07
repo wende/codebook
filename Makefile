@@ -4,7 +4,11 @@
 CICADA_PORT ?= 9999
 CODEBOOK_PORT ?= 3000
 
-.PHONY: all dev stop test clean cicada mock pr-comments
+.PHONY: all dev stop test clean cicada mock pr-comments install
+
+# Install package in editable mode with dev dependencies
+install:
+	pip install -e ".[dev]"
 
 # Start all services
 all: dev
