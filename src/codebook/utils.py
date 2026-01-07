@@ -300,17 +300,23 @@ class CodeBookStatusChecker:
         required = self.CICADA_REQUIRED_PARAMS.get(endpoint, [])
         for param in required:
             if param not in params:
-                # Special case for search-module: needs module_name OR file_path
-                if endpoint == "search-module" and (
-                    "module_name" in params or "file_path" in params
-                ):
-                    continue
                 return LinkValidationResult(
                     link=link,
                     file_path=source_file,
                     line_number=line_number,
                     is_valid=False,
                     error_message=f"Missing required parameter: {param}",
+                )
+
+        # Special case for search-module: needs module_name OR file_path
+        if endpoint == "search-module":
+            if "module_name" not in params and "file_path" not in params:
+                return LinkValidationResult(
+                    link=link,
+                    file_path=source_file,
+                    line_number=line_number,
+                    is_valid=False,
+                    error_message="search-module requires either module_name or file_path parameter",
                 )
 
         return LinkValidationResult(

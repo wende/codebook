@@ -1394,7 +1394,7 @@ This task uses a short SHA for reviewed entry.
         # Should analyze text file
         assert "text_code.py" in result.output
         # Should NOT analyze binary file
-        assert "image.png" not in result.output or "Could not analyze" not in result.output
+        assert "image.png" not in result.output
 
     def test_task_mark_reviewed_help(self, runner: CliRunner):
         """Should show mark-reviewed help."""

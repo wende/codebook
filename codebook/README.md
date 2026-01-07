@@ -56,7 +56,7 @@ codebook run
 
 | Metric    | Value                               |
 | --------- | ----------------------------------- |
-| Version   | [`v0.1.1-4-g3aeabd4`](codebook:codebook.version)  |
+| Version   | [`v0.1.1-5-g8afa31a`](codebook:codebook.version)  |
 
 ## Documentation Files
 

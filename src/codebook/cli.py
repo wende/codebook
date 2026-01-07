@@ -2794,7 +2794,7 @@ def utils_status(
         click.echo("-" * 60)
 
         # Get client from context or create from config
-        client = ctx.obj.get("client")
+        client = getattr(ctx, "obj", {}).get("client")
         if not client:
             client = CodeBookClient(
                 base_url=cfg.backend.url if hasattr(cfg, "backend") else "http://localhost:3000",

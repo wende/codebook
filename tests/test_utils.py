@@ -318,6 +318,23 @@ class TestCodeBookStatusChecker:
         result = checker.validate_cicada_block(link, source, 1)
         assert result.is_valid
 
+    def test_validate_cicada_search_module_without_params(self, checker, tmp_path):
+        """Test search-module without required parameters."""
+        source = tmp_path / "source.md"
+        link = CodeBookLink(
+            full_match="",
+            value="",
+            template="search-module",
+            start=0,
+            end=0,
+            link_type=LinkType.CICADA,
+            params={},  # Missing both module_name and file_path
+        )
+
+        result = checker.validate_cicada_block(link, source, 1)
+        assert not result.is_valid
+        assert "either module_name or file_path" in result.error_message
+
     def test_scan_file(self, checker, tmp_path):
         """Test scanning a file for link issues."""
         # Create a markdown file with various links
