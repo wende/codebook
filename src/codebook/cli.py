@@ -48,6 +48,30 @@ def setup_logging(verbose: bool) -> None:
     )
 
 
+def get_client_from_context(ctx: click.Context, cfg: CodeBookConfig) -> CodeBookClient:
+    """Get client from context or create from config.
+
+    This function handles cases where commands may run independently
+    of the main CLI group (e.g., utility commands) or when context
+    isn't fully initialized.
+
+    Args:
+        ctx: Click context (may not have obj initialized)
+        cfg: CodeBook configuration
+
+    Returns:
+        CodeBookClient instance
+    """
+    client = getattr(ctx, "obj", {}).get("client")
+    if not client:
+        client = CodeBookClient(
+            base_url=cfg.backend.url if hasattr(cfg, "backend") else "http://localhost:3000",
+            timeout=10.0,
+            cache_ttl=60.0,
+        )
+    return client
+
+
 @click.group()
 @click.version_option(version=__version__, prog_name="codebook")
 @click.option(
@@ -2794,13 +2818,7 @@ def utils_status(
         click.echo("-" * 60)
 
         # Get client from context or create from config
-        client = getattr(ctx, "obj", {}).get("client")
-        if not client:
-            client = CodeBookClient(
-                base_url=cfg.backend.url if hasattr(cfg, "backend") else "http://localhost:3000",
-                timeout=10.0,
-                cache_ttl=60.0,
-            )
+        client = get_client_from_context(ctx, cfg)
         report.backend_url = client.base_url
 
         try:

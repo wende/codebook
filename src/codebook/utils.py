@@ -281,6 +281,11 @@ class CodeBookStatusChecker:
 
         Returns:
             Validation result
+
+        Note:
+            The search-module endpoint accepts either module_name OR file_path,
+            not both required. Other endpoints follow standard param requirements
+            defined in CICADA_REQUIRED_PARAMS.
         """
         endpoint = link.template  # endpoint is stored in template field
         params = link.params  # parameters dict
@@ -296,7 +301,25 @@ class CodeBookStatusChecker:
                 error_message=f"Invalid endpoint: {endpoint} (valid: {valid_list})",
             )
 
-        # Validate required parameters
+        # Special case: search-module accepts either module_name OR file_path (at least one)
+        if endpoint == "search-module":
+            if "module_name" not in params and "file_path" not in params:
+                return LinkValidationResult(
+                    link=link,
+                    file_path=source_file,
+                    line_number=line_number,
+                    is_valid=False,
+                    error_message="search-module requires either module_name or file_path parameter",
+                )
+            # Validation passed for search-module
+            return LinkValidationResult(
+                link=link,
+                file_path=source_file,
+                line_number=line_number,
+                is_valid=True,
+            )
+
+        # Standard validation: check all required parameters are present
         required = self.CICADA_REQUIRED_PARAMS.get(endpoint, [])
         for param in required:
             if param not in params:
@@ -308,17 +331,7 @@ class CodeBookStatusChecker:
                     error_message=f"Missing required parameter: {param}",
                 )
 
-        # Special case for search-module: needs module_name OR file_path
-        if endpoint == "search-module":
-            if "module_name" not in params and "file_path" not in params:
-                return LinkValidationResult(
-                    link=link,
-                    file_path=source_file,
-                    line_number=line_number,
-                    is_valid=False,
-                    error_message="search-module requires either module_name or file_path parameter",
-                )
-
+        # All validations passed
         return LinkValidationResult(
             link=link,
             file_path=source_file,
