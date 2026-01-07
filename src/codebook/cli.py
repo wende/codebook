@@ -48,28 +48,30 @@ def setup_logging(verbose: bool) -> None:
     )
 
 
-def get_client_from_context(ctx: click.Context, cfg: CodeBookConfig) -> CodeBookClient:
-    """Get client from context or create from config.
+def get_client_from_context(ctx: click.Context) -> CodeBookClient:
+    """Get client from context with safe access and clear error handling.
 
-    This function handles cases where commands may run independently
-    of the main CLI group (e.g., utility commands) or when context
-    isn't fully initialized.
+    All subcommands run under the main() group which initializes ctx.obj["client"]
+    from CLI arguments (--base-url, --timeout, --cache-ttl). This helper provides
+    safe access with informative error messages.
+
+    Special cases that DON'T use this helper:
+    - run: Creates its own client from codebook.yml config, bypassing CLI flags
 
     Args:
-        ctx: Click context (may not have obj initialized)
-        cfg: CodeBook configuration
+        ctx: Click context from @click.pass_context
 
     Returns:
         CodeBookClient instance
+
+    Raises:
+        click.ClickException: If context not properly initialized
     """
-    client = getattr(ctx, "obj", {}).get("client")
-    if not client:
-        client = CodeBookClient(
-            base_url=cfg.backend.url if hasattr(cfg, "backend") else "http://localhost:3000",
-            timeout=10.0,
-            cache_ttl=60.0,
+    if not ctx.obj or "client" not in ctx.obj:
+        raise click.ClickException(
+            "Client not initialized. This command must be run as a subcommand of 'codebook'."
         )
-    return client
+    return ctx.obj["client"]
 
 
 @click.group()
@@ -186,7 +188,7 @@ def render(
         codebook render docs/ --exec
         codebook render docs/ --cicada
     """
-    client = ctx.obj["client"]
+    client = get_client_from_context(ctx)
 
     # Create kernel if code execution is enabled
     kernel = None
@@ -302,7 +304,7 @@ def watch(
         codebook watch docs/ --exec
         codebook watch docs/ --cicada
     """
-    client = ctx.obj["client"]
+    client = get_client_from_context(ctx)
 
     # Create kernel if code execution is enabled
     kernel = None
@@ -390,7 +392,7 @@ def diff(ctx: click.Context, path: Path, ref: str, recursive: bool, output: Path
         codebook diff .codebook/ -o changes.patch
         codebook diff docs/readme.md --ref main
     """
-    client = ctx.obj["client"]
+    client = get_client_from_context(ctx)
     renderer = CodeBookRenderer(client)
     differ = CodeBookDiffer(renderer)
 
@@ -425,7 +427,7 @@ def show(ctx: click.Context, path: Path) -> None:
     Example:
         codebook show .codebook/readme.md
     """
-    client = ctx.obj["client"]
+    client = get_client_from_context(ctx)
     renderer = CodeBookRenderer(client)
     differ = CodeBookDiffer(renderer)
 
@@ -453,7 +455,7 @@ def health(ctx: click.Context) -> None:
         codebook health
         codebook --base-url http://api.example.com health
     """
-    client = ctx.obj["client"]
+    client = get_client_from_context(ctx)
 
     click.echo(f"Checking {client.base_url}...")
 
@@ -474,7 +476,7 @@ def clear_cache(ctx: click.Context) -> None:
     Example:
         codebook clear-cache
     """
-    client = ctx.obj["client"]
+    client = get_client_from_context(ctx)
     client.clear_cache()
     click.echo("Cache cleared")
 
@@ -2817,8 +2819,8 @@ def utils_status(
         click.echo("🌐 Backend Connectivity")
         click.echo("-" * 60)
 
-        # Get client from context or create from config
-        client = get_client_from_context(ctx, cfg)
+        # Get client from context
+        client = get_client_from_context(ctx)
         report.backend_url = client.base_url
 
         try:
